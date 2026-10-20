@@ -9,6 +9,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.BitmapFactory
+import android.widget.ImageView
 import android.graphics.drawable.GradientDrawable
 import android.media.MediaPlayer
 import android.media.projection.MediaProjectionManager
@@ -37,13 +40,30 @@ class MainActivity : Activity() {
     private val captureCode=542
     private val importCode=543
     private var allAudio=false
-    private val dark=Color.rgb(27,39,52)
-    private val surface=Color.rgb(36,51,67)
-    private val accent=Color.rgb(255,209,28)
-    private val textColor=Color.rgb(245,247,249)
-    private val subtle=Color.rgb(171,184,198)
+    private val dark=Color.BLACK
+    private val surface=Color.rgb(13,13,15)
+    private val accent=Color.rgb(241,35,53)
+    private val textColor=Color.rgb(246,246,247)
+    private val subtle=Color.rgb(170,172,177)
     private val prefs by lazy { getSharedPreferences("record_settings",MODE_PRIVATE) }
+    private val manrope:Typeface by lazy {
+        try {Typeface.createFromAsset(assets,"fonts/manrope.ttf")}
+        catch (_:Exception) {Typeface.create("sans-serif",Typeface.NORMAL)}
+    }
+    private fun uiScale():Float=when(prefs.getString("ui_size","M")) {
+        "S"->0.73f
+        "L"->0.97f
+        else->0.84f
+    }
+    private fun fontScale():Float=when(prefs.getString("ui_size","M")) {
+        "S"->0.82f
+        "L"->1.13f
+        else->1.0f
+    }
     private lateinit var root:LinearLayout
+    private val navigationButtons=linkedMapOf<String,Button>()
+    private var rightPreview:LinearLayout?=null
+    private var selectedEntry:AudioEntry?=null
     private lateinit var panel:LinearLayout
     private lateinit var status:TextView
     private var timer:TextView?=null
@@ -99,17 +119,25 @@ class MainActivity : Activity() {
         window.decorView.setBackgroundColor(dark)
         root=LinearLayout(this).apply {
             orientation=LinearLayout.HORIZONTAL
-            setPadding(dp(20),dp(20),dp(20),dp(20))
+            setPadding(dp(10),dp(10),dp(10),dp(10))
         }
         setContentView(root)
         val side=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
-            setPadding(dp(7),dp(6),dp(17),dp(3))
+            setPadding(dp(4),dp(4),dp(10),dp(4))
         }
-        root.addView(side,LinearLayout.LayoutParams(dp(275),-1))
-        side.addView(label("TV AUDIO",30,accent))
-        side.addView(label("RECORDER  •  v1.5",17,subtle))
-        side.addView(space(26))
+        root.addView(side,LinearLayout.LayoutParams(dp(200),-1))
+        val logo=ImageView(this).apply {
+            scaleType=ImageView.ScaleType.FIT_CENTER
+            adjustViewBounds=true
+            try {
+                assets.open("brand_logo.jpg").use { stream->
+                    setImageBitmap(BitmapFactory.decodeStream(stream))
+                }
+            }catch (_:Exception) { contentDescription="AudioRelay Recorder" }
+        }
+        side.addView(logo,LinearLayout.LayoutParams(-1,dp(94)))
+        side.addView(space(8))
         for(name in listOf("Nagrywaj","Nagrania","Ulubione","Kosz","Ustawienia","Diagnostyka")) {
             val title=when(name){
                 "Nagrywaj"->"●  NAGRYWANIE"
@@ -119,12 +147,17 @@ class MainActivity : Activity() {
                 "Ustawienia"->"⚙  USTAWIENIA"
                 else->"⌕  DIAGNOSTYKA PLIKÓW"
             }
-            side.addView(btn(title) {showPage(name)})
+            val button=btn(title) {showPage(name)}
+            navigationButtons[name]=button
+            side.addView(button)
         }
-        side.addView(space(12))
-        side.addView(label("Nagrywaj dźwięk z aplikacji bez nagrywania obrazu.",15,subtle))
+        side.addView(space(10))
+        side.addView(btn("Aa  Manrope  •  "+(prefs.getString("ui_size","M") ?: "M")) {
+            sizeDialog()
+        })
         side.addView(View(this),LinearLayout.LayoutParams(1,0,1f))
-        status=label("Gotowy.",15,subtle)
+        side.addView(label("AudioRelay Recorder  •  v1.6",12,subtle))
+        status=label("Gotowy.",13,subtle)
         side.addView(status)
         val scroll=ScrollView(this).apply {
             isFillViewport=true
@@ -132,11 +165,11 @@ class MainActivity : Activity() {
         }
         panel=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
-            setPadding(dp(25),dp(19),dp(25),dp(16))
+            setPadding(dp(12),dp(11),dp(12),dp(10))
         }
         scroll.addView(panel)
         root.addView(scroll,LinearLayout.LayoutParams(0,-1,1f))
-        showPage("Nagrywaj")
+        showPage(savedInstanceState?.getString("page") ?: "Nagrywaj",false)
         lastLibraryRevision=prefs.getLong("library_revision",0L)
         handler.post(ticker)
     }
@@ -145,35 +178,55 @@ class MainActivity : Activity() {
         player?.release();player=null
         super.onDestroy()
     }
-    private fun dp(v:Int):Int=(resources.displayMetrics.density*v).toInt()
+    private fun dp(v:Int):Int=(resources.displayMetrics.density*v*uiScale()).toInt().coerceAtLeast(1)
+    override fun onSaveInstanceState(outState:Bundle) {
+        outState.putString("page",page)
+        super.onSaveInstanceState(outState)
+    }
+    private fun sizeDialog() {
+        val options=arrayOf("S — kompaktowy","M — standardowy","L — większy")
+        val values=arrayOf("S","M","L")
+        val index=values.indexOf(prefs.getString("ui_size","M")).coerceAtLeast(0)
+        AlertDialog.Builder(this).setTitle("Wielkość interfejsu — Manrope")
+            .setSingleChoiceItems(options,index) { dialog,which->
+                prefs.edit().putString("ui_size",values[which]).commit()
+                dialog.dismiss()
+                recreate()
+            }.setNegativeButton("ANULUJ",null).show()
+    }
     private fun label(value:String,size:Int=18,color:Int=textColor):TextView=TextView(this).apply {
-        text=value;textSize=size.toFloat();setTextColor(color)
+        text=value;textSize=size.toFloat()*fontScale();setTextColor(color)
+        typeface=manrope
         gravity=Gravity.CENTER_VERTICAL
         setPadding(dp(3),dp(5),dp(3),dp(5))
     }
     private fun space(h:Int):View=View(this).apply {minimumHeight=dp(h)}
     private fun btn(value:String,click:()->Unit):Button=Button(this).apply {
         text=value
-        textSize=16f
+        textSize=14f*fontScale()
+        typeface=manrope
+        minimumHeight=0
+        minHeight=0
         isAllCaps=false
         isFocusable=true
         setTextColor(textColor)
-        setPadding(dp(13),dp(10),dp(13),dp(10))
+        setPadding(dp(7),dp(6),dp(7),dp(6))
         background=rounded(surface)
         setOnFocusChangeListener { view,hasFocus ->
-            view.background=rounded(if(hasFocus)Color.rgb(87,103,118) else surface)
-            (view as Button).setTextColor(if(hasFocus) accent else textColor)
+            view.background=rounded(if(hasFocus)Color.rgb(67,7,14) else surface,hasFocus)
+            (view as Button).setTextColor(if(hasFocus) textColor else textColor)
         }
         setOnClickListener {click()}
     }
-    private fun rounded(color:Int):GradientDrawable=GradientDrawable().apply {
-        setColor(color);cornerRadius=dp(13).toFloat()
-        setStroke(dp(1),Color.rgb(68,84,98))
+    private fun rounded(color:Int,focused:Boolean=false):GradientDrawable=GradientDrawable().apply {
+        setColor(color);cornerRadius=dp(10).toFloat()
+        setStroke(dp(if(focused)2 else 1),
+            if(focused) accent else Color.rgb(37,37,41))
     }
     private fun line(title:String,sub:String?=null) {
-        panel.addView(label(title,27,accent))
+        panel.addView(label(title,25,textColor))
         if(sub!=null)panel.addView(label(sub,15,subtle))
-        panel.addView(space(12))
+        panel.addView(space(6))
     }
     private fun options(title:String,labels:List<Pair<String,String>>,chosen:String,
                         enabled:(String)->Boolean={true},onChange:(String)->Unit) {
@@ -198,10 +251,16 @@ class MainActivity : Activity() {
             player?.pause()
         page=target
         panel.removeAllViews()
+        rightPreview=null
         timer=null;waveform=null;clock=null;playSeek=null;playButton=null
+        navigationButtons.forEach { (name,b)->
+            b.background=rounded(if(name==target)Color.rgb(65,3,12) else surface,
+                name==target)
+            b.setTextColor(if(name==target)accent else textColor)
+        }
         when(target) {
             "Nagrywaj"->recordPage()
-            "Nagrania"->filesPage(false,false)
+            "Nagrania"->dashboardPage()
             "Ulubione"->filesPage(false,true)
             "Kosz"->filesPage(true,false)
             "Ustawienia"->settingsPage()
