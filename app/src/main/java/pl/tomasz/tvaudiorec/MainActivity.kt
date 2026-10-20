@@ -18,6 +18,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import android.os.Environment
+import java.io.File
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
@@ -33,6 +35,8 @@ import java.util.Locale
 
 class MainActivity : Activity() {
     private val captureCode=542
+    private val importCode=543
+    private var allAudio=false
     private val dark=Color.rgb(27,39,52)
     private val surface=Color.rgb(36,51,67)
     private val accent=Color.rgb(255,209,28)
@@ -207,7 +211,8 @@ class MainActivity : Activity() {
         })
         panel.addView(label("Aby nagrywać aplikację w tle, wybierz START i zaakceptuj systemową zgodę. "
             +"Niektóre aplikacje blokują przechwytywanie wewnętrznego audio.",16,subtle))
-        panel.addView(btn("PRZEJDŹ DO ZAPISANYCH NAGRAŃ") {showPage("Nagrania")})
+        panel.addView(btn("⚙  USTAWIENIA: ŹRÓDŁO / FORMAT / kHz / MONO-STEREO") {showPage("Ustawienia")})
+        panel.addView(btn("≡  OTWÓRZ ZAPISANE NAGRANIA") {showPage("Nagrania")})
     }
     private fun sourceName():String=when(prefs.getString("source","Internal")) {
         "Microphone"->"Mikrofon";"Internal + Mic"->"Wewnętrzny + mikrofon"
@@ -240,6 +245,11 @@ class MainActivity : Activity() {
     @Deprecated("Android TV projection permission")
     override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
         super.onActivityResult(requestCode,resultCode,data)
+        if(requestCode==importCode) {
+            if(resultCode==RESULT_OK && data?.data!=null) importAudio(data.data!!)
+            else status.text="Anulowano wybór pliku."
+            return
+        }
         if(requestCode==captureCode) {
             if(resultCode==RESULT_OK && data!=null)launchService(resultCode,data)
             else status.text="Zgoda na nagrywanie została anulowana."
@@ -446,41 +456,79 @@ class MainActivity : Activity() {
         try{player?.let{it.seekTo((it.currentPosition+ms).coerceIn(0,it.duration))}}
         catch (_:Exception){}
     }
+    private fun selectionRow(
+        heading:String,value:String,choices:List<Pair<String,String>>,
+        selected:String,onSelect:(String)->Unit
+    ) {
+        panel.addView(label(heading,19,subtle))
+        panel.addView(btn("▾   "+value+"      (OK — ZMIEŃ)") {
+            val index=choices.indexOfFirst {it.second==selected}.coerceAtLeast(0)
+            AlertDialog.Builder(this).setTitle(heading)
+                .setSingleChoiceItems(choices.map{it.first}.toTypedArray(),index) { dialog,which->
+                    val key=choices[which].second
+                    if(heading=="FORMAT NAGRANIA" && key=="MP3" && !EncoderSupport.mp3Available()) {
+                        dialog.dismiss()
+                        AlertDialog.Builder(this)
+                            .setTitle("MP3 niedostępny na tym telewizorze")
+                            .setMessage("Brak systemowego enkodera MP3. Dostępne formaty: "
+                                +"M4A, MP4 (tylko audio), WAV i FLAC.")
+                            .setPositiveButton("OK",null).show()
+                    } else {
+                        onSelect(key);dialog.dismiss();showPage("Ustawienia")
+                    }
+                }.setNegativeButton("ANULUJ",null).show()
+        })
+        panel.addView(space(9))
+    }
     private fun settingsPage() {
-        line("USTAWIENIA NAGRYWANIA","Zmiany obowiązują przy następnym nagraniu.")
-        options("ŹRÓDŁO DŹWIĘKU",listOf(
-            "Wewnętrzny" to "Internal",
+        line("USTAWIENIA NAGRYWANIA",
+            "Każde ustawienie to osobny przycisk. Pilot: strzałki, OK, Wstecz.")
+        val source=prefs.getString("source","Internal") ?: "Internal"
+        selectionRow("ŹRÓDŁO DŹWIĘKU",sourceName(),listOf(
+            "Dźwięk wewnętrzny" to "Internal",
             "Mikrofon" to "Microphone",
-            "Wewnętrzny + Mic" to "Internal + Mic",
-            "Wewnętrzny + BT" to "Internal + Bluetooth"),
-            prefs.getString("source","Internal") ?: "Internal") {
-            prefs.edit().putString("source",it).apply();showPage("Ustawienia")
+            "Wewnętrzny + mikrofon" to "Internal + Mic",
+            "Wewnętrzny + mikrofon Bluetooth" to "Internal + Bluetooth"),source) {
+            prefs.edit().putString("source",it).apply()
         }
-        options("FORMAT ZAPISU",listOf(
-            "M4A" to "M4A","WAV" to "WAV","MP3" to "MP3","FLAC" to "FLAC"),
-            prefs.getString("format","M4A") ?: "M4A",
-            {it!="MP3" || EncoderSupport.mp3Available()}) {
-            prefs.edit().putString("format",it).apply();showPage("Ustawienia")
+        val format=prefs.getString("format","M4A") ?: "M4A"
+        selectionRow("FORMAT NAGRANIA",when(format) {
+            "MP4"->"MP4 — tylko audio AAC"
+            "MP3"->"MP3 — kompresja stratna"
+            "WAV"->"WAV — bez kompresji"
+            "FLAC"->"FLAC — bezstratny"
+            else->"M4A — AAC"
+        },listOf(
+            "M4A — AAC" to "M4A",
+            "MP4 — AAC (bez obrazu)" to "MP4",
+            "MP3 — wymaga enkodera telewizora" to "MP3",
+            "WAV — PCM bez kompresji" to "WAV",
+            "FLAC — bezstratny" to "FLAC"),format) {
+            prefs.edit().putString("format",it).apply()
         }
-        options("CZĘSTOTLIWOŚĆ PRÓBKOWANIA",listOf(
-            "8 kHz" to "8000","16 kHz" to "16000","22,05" to "22050",
-            "32 kHz" to "32000","44,1" to "44100","48 kHz" to "48000"),
-            prefs.getInt("rate",48000).toString()) {
-            prefs.edit().putInt("rate",it.toInt()).apply();showPage("Ustawienia")
+        val rate=prefs.getInt("rate",48000).toString()
+        selectionRow("CZĘSTOTLIWOŚĆ (kHz)",rate+" Hz",
+            listOf("8 kHz" to "8000","16 kHz" to "16000",
+                "22,05 kHz" to "22050","32 kHz" to "32000",
+                "44,1 kHz" to "44100","48 kHz" to "48000"),rate) {
+            prefs.edit().putInt("rate",it.toInt()).apply()
         }
-        options("KANAŁY",listOf("Mono" to "1","Stereo" to "2"),
-            prefs.getInt("channels",2).toString()){
-            prefs.edit().putInt("channels",it.toInt()).apply();showPage("Ustawienia")
+        val channels=prefs.getInt("channels",2).toString()
+        selectionRow("KANAŁY",if(channels=="2")"Stereo" else "Mono",
+            listOf("Mono" to "1","Stereo" to "2"),channels) {
+            prefs.edit().putInt("channels",it.toInt()).apply()
         }
-        options("BITRATE (M4A / MP3)",listOf(
-            "96 kb/s" to "96000","192 kb/s" to "192000","256 kb/s" to "256000"),
-            prefs.getInt("bitrate",192000).toString()) {
-            prefs.edit().putInt("bitrate",it.toInt()).apply();showPage("Ustawienia")
+        val bitrate=prefs.getInt("bitrate",192000).toString()
+        selectionRow("JAKOŚĆ AAC / MP3",(bitrate.toInt()/1000).toString()+" kb/s",
+            listOf("96 kb/s" to "96000","128 kb/s" to "128000",
+                "192 kb/s" to "192000","256 kb/s" to "256000",
+                "320 kb/s" to "320000"),bitrate) {
+            prefs.edit().putInt("bitrate",it.toInt()).apply()
         }
-        panel.addView(label("FLAC i WAV są bezstratne. MP3 wymaga systemowego enkodera. "
-            +"Bluetooth oznacza mikrofon zestawu BT, nie przechwytywanie wyjścia słuchawek.",15,subtle))
-        panel.addView(label("System Android TV może wymagać zgody na przechwytywanie przy każdym "
-            +"uruchomieniu. Ustawienia aplikacji nie mogą ominąć tej zgody.",15,subtle))
+        panel.addView(label("MP4 oznacza plik audio w kontenerze MP4 (bez obrazu). "
+            +"Źródło wewnętrzne wymaga systemowej zgody na przechwytywanie. "
+            +"Niektóre aplikacje blokują nagrywanie.",16,subtle))
+        panel.addView(btn("←  WRÓĆ DO NAGRYWANIA") {showPage("Nagrywaj")})
     }
     private fun time(millis:Long):String {
         val s=(millis/1000).coerceAtLeast(0)
