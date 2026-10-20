@@ -99,7 +99,7 @@ jobs:
           # Exact brand motif: white modern ring interrupted by a red REC dot.
           icon=Image.new('RGB',(512,512),BLACK)
           d=ImageDraw.Draw(icon)
-          d.arc((91,91,421,421),5,355,fill=WHITE,width=10)
+          d.arc((91,91,421,421),190,530,fill=WHITE,width=10)
           d.ellipse((76,237,116,277),fill=RED)
           icon.save(RES/'grabber_launcher.png',optimize=True)
 
@@ -107,7 +107,7 @@ jobs:
           # Original TV layout dimensions and two-column proportions stay intact.
           logo=Image.new('RGB',(900,200),BLACK)
           d=ImageDraw.Draw(logo)
-          d.arc((16,24,167,175),5,355,fill=WHITE,width=6)
+          d.arc((16,24,167,175),190,530,fill=WHITE,width=6)
           d.ellipse((7,90,31,114),fill=RED)
           font=ImageFont.truetype(FONT,76)
           d.text((200,20),'AudioRelay',font=font,fill=WHITE,anchor='lt')
