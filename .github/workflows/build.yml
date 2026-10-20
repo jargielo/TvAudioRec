@@ -1,7 +1,7 @@
-name: Build AudioRelay Recorder v1.7.0 AMOLED MP3 Opus
+name: Build AudioRelay Recorder v1.8.0 AMOLED MP3 Opus
 on:
   push:
-    branches: [audiorelay-recorder-v1-7-layout-2]
+    branches: [audiorelay-recorder-v1-8-retro]
   workflow_dispatch:
 permissions:
   contents: read
@@ -78,11 +78,37 @@ jobs:
               -lm -llog -o "app/src/main/jniLibs/$ABI/libtvopus.so"
             test -s "app/src/main/jniLibs/$ABI/libtvopus.so"
           done
+      - name: Prepare matching retro icon and TV banner from supplied logo
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python3 -m pip install --quiet Pillow
+          mkdir -p app/src/main/res/drawable-nodpi
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          source=Image.open('app/src/main/assets/retro_wordmark.webp').convert('RGB')
+          # The same wordmark appears in the header and TV home banner.
+          banner=Image.new('RGB',(640,360),'black')
+          wordmark=source.copy()
+          wordmark.thumbnail((592,250),Image.Resampling.LANCZOS)
+          banner.paste(wordmark,((640-wordmark.width)//2,(360-wordmark.height)//2))
+          banner.save('app/src/main/res/drawable-nodpi/retro_tv_banner.png')
+          # App icon is the vintage VU-meter portion of that exact logo,
+          # large enough to recognize at Android TV launcher sizes.
+          meter=source.crop((0,0,105,source.height))
+          meter.thumbnail((224,224),Image.Resampling.LANCZOS)
+          square=Image.new('RGB',(256,256),'black')
+          square.paste(meter,((256-meter.width)//2,(256-meter.height)//2))
+          square.save('app/src/main/res/drawable-nodpi/retro_launcher.png')
+          PY
+          test -s app/src/main/res/drawable-nodpi/retro_launcher.png
+          test -s app/src/main/res/drawable-nodpi/retro_tv_banner.png
       - name: Compile Android TV APK
         run: gradle assembleDebug --no-daemon --stacktrace
       - name: Upload new installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: AudioRelay-Recorder-v1.7.0-AMOLED-Manrope-APK
+          name: AudioRelay-Recorder-v1.8.0-AMOLED-Manrope-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
