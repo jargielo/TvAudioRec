@@ -1,7 +1,7 @@
-name: Build TV Audio Recorder v1.5.0 with MP3
+name: Build TV Audio Recorder v1.6.0 with MP3
 on:
   push:
-    branches: [tv-audio-recorder-v1-5-library-repair]
+    branches: [tv-audio-recorder-v1-6-amoled-manrope]
   workflow_dispatch:
 permissions:
   contents: read
@@ -20,6 +20,23 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
+      - name: Add Manrope font and matching AudioRelay icon / Android TV banner
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p app/src/main/assets/fonts app/src/main/res/drawable-nodpi
+          base64 -d design/brand-logo.jpg.base64 > app/src/main/assets/brand_logo.jpg
+          cp app/src/main/assets/brand_logo.jpg app/src/main/res/drawable-nodpi/ic_launcher.jpg
+          cp app/src/main/assets/brand_logo.jpg app/src/main/res/drawable-nodpi/tv_banner.jpg
+          curl -fL --retry 3 --connect-timeout 15 \
+            'https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/Manrope%5Bwght%5D.ttf' \
+            -o app/src/main/assets/fonts/manrope.ttf
+          curl -fL --retry 3 \
+            'https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/OFL.txt' \
+            -o app/src/main/assets/fonts/OFL-Manrope.txt
+          test -s app/src/main/res/drawable-nodpi/ic_launcher.jpg
+          test -s app/src/main/res/drawable-nodpi/tv_banner.jpg
+          test -s app/src/main/assets/fonts/manrope.ttf
       - name: Compile software LAME MP3 encoder for Android TV
         shell: bash
         run: |
@@ -46,6 +63,6 @@ jobs:
       - name: Upload new installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: TV-Audio-Recorder-v1.5.0-LAME-MP3-APK
+          name: TV-Audio-Recorder-v1.6.0-LAME-MP3-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
