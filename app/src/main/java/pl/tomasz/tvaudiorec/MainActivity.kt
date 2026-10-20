@@ -56,6 +56,8 @@ class MainActivity : Activity() {
     private var loop=false
     private var page="Nagrywaj"
     private var lastRecording=false
+    private val history=ArrayDeque<String>()
+    private var exitDialogShowing=false
     private val handler=Handler(Looper.getMainLooper())
     private val ticker=object:Runnable {
         override fun run() {
@@ -97,7 +99,7 @@ class MainActivity : Activity() {
         }
         root.addView(side,LinearLayout.LayoutParams(dp(275),-1))
         side.addView(label("TV AUDIO",30,accent))
-        side.addView(label("RECORDER  •  v1.3",17,subtle))
+        side.addView(label("RECORDER  •  v1.4",17,subtle))
         side.addView(space(26))
         for(name in listOf("Nagrywaj","Nagrania","Ulubione","Kosz","Ustawienia")) {
             val title=when(name){
@@ -178,7 +180,11 @@ class MainActivity : Activity() {
         panel.addView(row)
         panel.addView(space(10))
     }
-    private fun showPage(target:String) {
+    private fun showPage(target:String, saveHistory:Boolean=true) {
+        if(saveHistory && target!=page && page!="Odtwarzacz")
+            history.addLast(page)
+        if(target!=page && page=="Odtwarzacz")
+            player?.pause()
         page=target
         panel.removeAllViews()
         timer=null;waveform=null;clock=null;playSeek=null;playButton=null
@@ -190,6 +196,50 @@ class MainActivity : Activity() {
             "Ustawienia"->settingsPage()
         }
     }
+    private fun previousScreen() {
+        if(page=="Odtwarzacz")player?.pause()
+        if(history.isNotEmpty()) {
+            val previous=history.removeLast()
+            if(previous=="Odtwarzacz") {
+                val audio=playing
+                if(audio!=null)showPlayer(audio,false)
+                else showPage("Nagrania",false)
+            } else showPage(previous,false)
+        } else if(page!="Nagrywaj") {
+            showPage("Nagrywaj",false)
+        } else confirmExit()
+    }
+
+    @Deprecated("Back navigation for Android TV remote")
+    override fun onBackPressed() {
+        previousScreen()
+    }
+
+    private fun confirmExit() {
+        if(exitDialogShowing)return
+        exitDialogShowing=true
+        val recording=RecordingService.isRecording
+        val dialog=AlertDialog.Builder(this)
+            .setTitle("Zamknąć TV Audio Recorder?")
+            .setMessage(if(recording)
+                "Nagrywanie trwa. Po zamknięciu okna będzie działało w tle. " +
+                    "Możesz również zatrzymać i zapisać nagranie."
+                else "Czy na pewno chcesz zamknąć aplikację?")
+            .setNegativeButton("ANULUJ",null)
+            .setPositiveButton(if(recording)"WYJDŹ, NAGRYWAJ W TLE" else "ZAMKNIJ") { _,_ ->
+                finish()
+            }
+            .apply {
+                if(recording)setNeutralButton("STOP, ZAPISZ I WYJDŹ") { _,_->
+                    stopRecording()
+                    finish()
+                }
+            }
+            .create()
+        dialog.setOnDismissListener {exitDialogShowing=false}
+        dialog.show()
+    }
+
     private fun recordPage() {
         line("REJESTRATOR DŹWIĘKU","Źródło: "+sourceName()+"    •    "+
             prefs.getString("format","M4A")+"    •    "+rateName()+"    •    "+
@@ -497,7 +547,8 @@ class MainActivity : Activity() {
             }
             .setNegativeButton("ANULUJ",null).show()
     }
-    private fun showPlayer(entry:AudioEntry) {
+    private fun showPlayer(entry:AudioEntry,saveHistory:Boolean=true) {
+        if(saveHistory && page!="Odtwarzacz")history.addLast(page)
         page="Odtwarzacz"
         panel.removeAllViews()
         line("ODTWARZACZ","Nagranie: "+entry.name)
@@ -534,7 +585,7 @@ class MainActivity : Activity() {
             loop=!loop;player?.isLooping=loop;showPlayer(entry)
         })
         panel.addView(btn("☆  ULUBIONE / USUŃ / ZMIEŃ NAZWĘ") {showFileActions(entry)})
-        panel.addView(btn("←  WRÓĆ DO LISTY NAGRAŃ") {showPage("Nagrania")})
+        panel.addView(btn("←  WSTECZ DO LISTY") {previousScreen()})
         if(playing?.uri!=entry.uri) {
             player?.release();player=null;playing=null
         }
@@ -633,7 +684,7 @@ class MainActivity : Activity() {
         panel.addView(label("MP4 oznacza plik audio w kontenerze MP4 (bez obrazu). "
             +"Źródło wewnętrzne wymaga systemowej zgody na przechwytywanie. "
             +"Niektóre aplikacje blokują nagrywanie.",16,subtle))
-        panel.addView(btn("←  WRÓĆ DO NAGRYWANIA") {showPage("Nagrywaj")})
+        panel.addView(btn("←  WSTECZ") {previousScreen()})
     }
     private fun time(millis:Long):String {
         val s=(millis/1000).coerceAtLeast(0)
