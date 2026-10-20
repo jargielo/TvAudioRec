@@ -9,6 +9,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.BitmapFactory
+import android.widget.ImageView
 import android.graphics.drawable.GradientDrawable
 import android.media.MediaPlayer
 import android.media.projection.MediaProjectionManager
@@ -37,11 +40,24 @@ class MainActivity : Activity() {
     private val captureCode=542
     private val importCode=543
     private var allAudio=false
-    private val dark=Color.rgb(27,39,52)
-    private val surface=Color.rgb(36,51,67)
-    private val accent=Color.rgb(255,209,28)
-    private val textColor=Color.rgb(245,247,249)
-    private val subtle=Color.rgb(171,184,198)
+    private val dark=Color.BLACK
+    private val surface=Color.rgb(11,11,12)
+    private val accent=Color.rgb(239,34,53)
+    private val textColor=Color.rgb(244,245,247)
+    private val subtle=Color.rgb(166,169,177)
+    private val uiScale:Float by lazy {
+        when(prefs.getString("ui_size","M")) {
+            "S"->0.82f
+            "L"->1.13f
+            else->1.0f
+        }
+    }
+    private val uiFont:Typeface by lazy {
+        try {Typeface.createFromAsset(assets,"Manrope.ttf")}
+        catch(_:Exception) {Typeface.create("sans-serif",Typeface.NORMAL)}
+    }
+    private lateinit var rightPanel:LinearLayout
+    private var selectedEntry:AudioEntry?=null
     private val prefs by lazy { getSharedPreferences("record_settings",MODE_PRIVATE) }
     private lateinit var root:LinearLayout
     private lateinit var panel:LinearLayout
@@ -145,35 +161,39 @@ class MainActivity : Activity() {
         player?.release();player=null
         super.onDestroy()
     }
-    private fun dp(v:Int):Int=(resources.displayMetrics.density*v).toInt()
+    private fun dp(v:Int):Int=(resources.displayMetrics.density*v*uiScale).toInt()
     private fun label(value:String,size:Int=18,color:Int=textColor):TextView=TextView(this).apply {
-        text=value;textSize=size.toFloat();setTextColor(color)
+        text=value;textSize=size.toFloat()*uiScale;setTextColor(color)
+        typeface=uiFont
         gravity=Gravity.CENTER_VERTICAL
-        setPadding(dp(3),dp(5),dp(3),dp(5))
+        setPadding(dp(2),dp(2),dp(2),dp(2))
     }
     private fun space(h:Int):View=View(this).apply {minimumHeight=dp(h)}
     private fun btn(value:String,click:()->Unit):Button=Button(this).apply {
         text=value
-        textSize=16f
+        textSize=13f*uiScale
+        typeface=uiFont
         isAllCaps=false
         isFocusable=true
         setTextColor(textColor)
-        setPadding(dp(13),dp(10),dp(13),dp(10))
+        setPadding(dp(6),dp(3),dp(6),dp(3))
         background=rounded(surface)
         setOnFocusChangeListener { view,hasFocus ->
-            view.background=rounded(if(hasFocus)Color.rgb(87,103,118) else surface)
-            (view as Button).setTextColor(if(hasFocus) accent else textColor)
+            view.background=rounded(if(hasFocus)Color.rgb(62,7,16) else surface,
+                if(hasFocus)accent else Color.rgb(40,40,43))
+            (view as Button).setTextColor(if(hasFocus)Color.WHITE else textColor)
         }
         setOnClickListener {click()}
     }
-    private fun rounded(color:Int):GradientDrawable=GradientDrawable().apply {
-        setColor(color);cornerRadius=dp(13).toFloat()
-        setStroke(dp(1),Color.rgb(68,84,98))
-    }
+    private fun rounded(color:Int,stroke:Int=Color.rgb(40,40,43)):GradientDrawable=
+        GradientDrawable().apply {
+            setColor(color);cornerRadius=dp(7).toFloat()
+            setStroke(dp(1),stroke)
+        }
     private fun line(title:String,sub:String?=null) {
-        panel.addView(label(title,27,accent))
-        if(sub!=null)panel.addView(label(sub,15,subtle))
-        panel.addView(space(12))
+        panel.addView(label(title,24,textColor))
+        if(sub!=null)panel.addView(label(sub,12,subtle))
+        panel.addView(space(5))
     }
     private fun options(title:String,labels:List<Pair<String,String>>,chosen:String,
                         enabled:(String)->Boolean={true},onChange:(String)->Unit) {
