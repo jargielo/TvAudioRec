@@ -1,0 +1,12 @@
+TV Audio Recorder - MP3 support
+
+This application integrates libmp3lame (LAME) version 3.100,
+licensed under LGPL 2.0 or later as stated by LAME's authors.
+LAME source and license are available at:
+https://lame.sourceforge.io/
+https://github.com/lameproject/lame
+
+The native library is compiled during GitHub Actions from public LAME
+source code, including the project's native bridge located under
+native/mp3_bridge.c. You can modify and rebuild the native component.
+No ads or subscriptions are involved.
