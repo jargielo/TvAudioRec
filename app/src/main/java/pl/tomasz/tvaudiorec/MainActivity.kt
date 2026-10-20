@@ -96,7 +96,7 @@ class MainActivity : Activity() {
         }
         root.addView(side,LinearLayout.LayoutParams(dp(275),-1))
         side.addView(label("TV AUDIO",30,accent))
-        side.addView(label("RECORDER  •  v1.1",17,subtle))
+        side.addView(label("RECORDER  •  v1.2",17,subtle))
         side.addView(space(26))
         for(name in listOf("Nagrywaj","Nagrania","Ulubione","Kosz","Ustawienia")) {
             val title=when(name){
@@ -344,7 +344,7 @@ class MainActivity : Activity() {
             }
             saved=contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,values)
                 ?:error("Nie można zapisać pliku")
-            val output=saved
+            val output=saved ?: error("Nie udało się utworzyć pliku")
             contentResolver.openInputStream(uri).use {input->
                 checkNotNull(input){"Nie można odczytać nagrania"}
                 contentResolver.openOutputStream(output,"w").use {dest->
