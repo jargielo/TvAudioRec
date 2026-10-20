@@ -56,6 +56,8 @@ class MainActivity : Activity() {
     private var loop=false
     private var page="Nagrywaj"
     private var lastRecording=false
+    private var lastLibraryRevision=0L
+    private var latestScan:RecordingLibrary.Scan?=null
     private val history=ArrayDeque<String>()
     private var exitDialogShowing=false
     private val handler=Handler(Looper.getMainLooper())
@@ -79,7 +81,14 @@ class MainActivity : Activity() {
                     clock?.text=time(mp.currentPosition.toLong())
                 }
             }catch (_:Exception){}
-            if(lastRecording && !RecordingService.isRecording && page=="Nagrywaj") showPage("Nagrywaj")
+            if(lastRecording && !RecordingService.isRecording && page=="Nagrywaj")
+                showPage("Nagrywaj",false)
+            val changed=prefs.getLong("library_revision",0L)
+            if(changed!=lastLibraryRevision){
+                lastLibraryRevision=changed
+                if(page in listOf("Nagrania","Ulubione","Kosz","Diagnostyka"))
+                    showPage(page,false)
+            }
             lastRecording=RecordingService.isRecording
             handler.postDelayed(this,500)
         }
@@ -99,15 +108,16 @@ class MainActivity : Activity() {
         }
         root.addView(side,LinearLayout.LayoutParams(dp(275),-1))
         side.addView(label("TV AUDIO",30,accent))
-        side.addView(label("RECORDER  •  v1.4",17,subtle))
+        side.addView(label("RECORDER  •  v1.5",17,subtle))
         side.addView(space(26))
-        for(name in listOf("Nagrywaj","Nagrania","Ulubione","Kosz","Ustawienia")) {
+        for(name in listOf("Nagrywaj","Nagrania","Ulubione","Kosz","Ustawienia","Diagnostyka")) {
             val title=when(name){
                 "Nagrywaj"->"●  NAGRYWANIE"
                 "Nagrania"->"≡  MOJE NAGRANIA"
                 "Ulubione"->"☆  ULUBIONE"
                 "Kosz"->"▣  KOSZ"
-                else->"⚙  USTAWIENIA"
+                "Ustawienia"->"⚙  USTAWIENIA"
+                else->"⌕  DIAGNOSTYKA PLIKÓW"
             }
             side.addView(btn(title) {showPage(name)})
         }
@@ -127,6 +137,7 @@ class MainActivity : Activity() {
         scroll.addView(panel)
         root.addView(scroll,LinearLayout.LayoutParams(0,-1,1f))
         showPage("Nagrywaj")
+        lastLibraryRevision=prefs.getLong("library_revision",0L)
         handler.post(ticker)
     }
     override fun onDestroy() {
@@ -194,6 +205,7 @@ class MainActivity : Activity() {
             "Ulubione"->filesPage(false,true)
             "Kosz"->filesPage(true,false)
             "Ustawienia"->settingsPage()
+            "Diagnostyka"->diagnosticsPage()
         }
     }
     private fun previousScreen() {
@@ -268,6 +280,7 @@ class MainActivity : Activity() {
             +"Niektóre aplikacje blokują przechwytywanie wewnętrznego audio.",16,subtle))
         panel.addView(btn("⚙  USTAWIENIA: ŹRÓDŁO / FORMAT / kHz / MONO-STEREO") {showPage("Ustawienia")})
         panel.addView(btn("≡  OTWÓRZ ZAPISANE NAGRANIA") {showPage("Nagrania")})
+        panel.addView(btn("⌕  SPRAWDŹ GDZIE ZAPISANO PLIKI") {showPage("Diagnostyka")})
     }
     private fun sourceName():String=when(prefs.getString("source","Internal")) {
         "Microphone"->"Mikrofon";"Internal + Mic"->"Wewnętrzny + mikrofon"
@@ -347,60 +360,11 @@ class MainActivity : Activity() {
         if(!hasAudioPermission())requestPermissions(arrayOf(permission),733)
     }
     private fun getEntries():List<AudioEntry> {
-        val result=linkedMapOf<String,AudioEntry>()
-        // Prefer saved-by-this-app catalog: works even if Android media
-        // scanning is delayed or the library read permission is missing.
-        for(item in RecordingIndex.entries(this)) {
-            try {
-                contentResolver.openFileDescriptor(item.uri,"r")?.use {
-                    result[item.uri.toString()]=AudioEntry(
-                        item.uri,item.name,item.size,item.timestamp)
-                }
-            }catch (_:Exception){}
+        val scanned=RecordingLibrary.scan(this,allAudio)
+        latestScan=scanned
+        return scanned.items.map{
+            AudioEntry(it.uri,it.name,it.size,it.time)
         }
-
-        val columns=arrayOf(MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.DISPLAY_NAME,MediaStore.Audio.Media.SIZE,
-            MediaStore.Audio.Media.DATE_ADDED)
-        val collection=MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        fun appendQuery(selection:String?,args:Array<String>?) {
-            try {
-                contentResolver.query(collection,columns,selection,args,
-                    MediaStore.Audio.Media.DATE_ADDED+" DESC")?.use {cursor->
-                    while(cursor.moveToNext()) {
-                        val uri=ContentUris.withAppendedId(collection,cursor.getLong(0))
-                        val item=AudioEntry(uri,cursor.getString(1) ?: "Nagranie",
-                            cursor.getLong(2),cursor.getLong(3))
-                        result.putIfAbsent(uri.toString(),item)
-                    }
-                }
-            }catch(e:Exception){
-                android.util.Log.w("TVAudioRecorder","MediaStore access denied",e)
-            }
-        }
-        // A narrow query can expose the app's own files without broad
-        // READ_EXTERNAL_STORAGE or READ_MEDIA_AUDIO permission.
-        appendQuery(MediaStore.MediaColumns.RELATIVE_PATH+" LIKE ?",
-            arrayOf("Music/TVAudioRecorder/%"))
-        if(allAudio && hasAudioPermission())appendQuery(null,null)
-
-        // Recovery scan for previous app versions using the public Music folder.
-        val publicDir=File(Environment.getExternalStoragePublicDirectory(
-            Environment.DIRECTORY_MUSIC),"TVAudioRecorder")
-        val directories=listOfNotNull(publicDir,
-            getExternalFilesDir(Environment.DIRECTORY_MUSIC),getExternalFilesDir(null))
-        for(dir in directories)try {
-            for(file in dir.listFiles() ?: emptyArray<File>()) {
-                if(!file.isFile || file.extension.lowercase() !in
-                    setOf("m4a","mp4","wav","flac","mp3","aac","ogg"))continue
-                if(result.values.any {it.name==file.name && it.bytes==file.length()})
-                    continue
-                val uri=Uri.fromFile(file)
-                result[uri.toString()]=AudioEntry(uri,file.name,
-                    file.length(),file.lastModified()/1000L)
-            }
-        }catch (_:Exception){}
-        return result.values.sortedByDescending{it.added}
     }
     private fun importAudio(uri:Uri) {
         val sourceName=try {
