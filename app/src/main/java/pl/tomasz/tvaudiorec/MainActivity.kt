@@ -525,7 +525,7 @@ class MainActivity : Activity() {
         val lastName=prefs.getString("last_saved_name","brak")
         val path=prefs.getString("last_output_path","brak")
         panel.addView(label("Widziane pliki: "+scan.items.size,23,accent))
-        panel.addView(label("Własny katalog zapisów: "+scan.catalogEntries,20))
+        panel.addView(label("Własny katalog zapisów: "+scan.indexed,20))
         panel.addView(label("Identyfikator tej instalacji: "+packageName,15,subtle))
         panel.addView(label("Dostęp do cudzych nagrań: "+
             if(hasAudioPermission())"PRZYZNANY" else "BRAK",17))
