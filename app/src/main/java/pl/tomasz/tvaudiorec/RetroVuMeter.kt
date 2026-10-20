@@ -6,49 +6,51 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.view.View
 import kotlin.math.max
+import kotlin.math.sqrt
 
 /**
- * Retro stereo-style peak meter for the recording dashboard.
- * Both rows intentionally show the same capture peak: AudioRecord's live
- * capture reports a combined level rather than per-channel peaks.
+ * Modern AMOLED twin-channel recording level monitor. Both visual rows
+ * represent the same combined capture amplitude, not independent channels.
  */
-class RetroVuMeter(context:Context):View(context){
+class RetroVuMeter(context:Context):View(context) {
     var level:Int=0
-        set(value){field=value.coerceAtLeast(0);invalidate()}
-    private val p=Paint(Paint.ANTI_ALIAS_FLAG)
-    private val cream=Color.rgb(245,220,184)
-    private val ember=Color.rgb(202,78,65)
-    private val dim=Color.rgb(49,43,38)
-    private val columns=35
-    override fun onDraw(c:Canvas) {
-        super.onDraw(c)
-        val w=width.toFloat()
-        val h=height.toFloat()
-        if(w<=0f || h<=0f)return
-        p.style=Paint.Style.FILL
-        val labelWidth=28f*resources.displayMetrics.density
-        val x0=labelWidth
-        val usable=(w-x0-5f).coerceAtLeast(50f)
-        val gap=4f
-        val barWidth=(usable/columns-gap).coerceAtLeast(2f)
-        val top1=h*0.12f
-        val top2=h*0.56f
-        val bh=h*0.24f
-        p.color=cream
-        p.textSize=max(14f,h*0.17f)
-        c.drawText("L",3f,top1+bh*0.88f,p)
-        c.drawText("R",3f,top2+bh*0.88f,p)
-        // Monitored PCM amplitude is on a 0..32767 scale. Log-like
-        // compression keeps quiet voices visible on a compact meter.
-        val normalized=(kotlin.math.sqrt(level.toDouble()/32767.0)*
-            columns).toInt().coerceIn(0,columns)
+        set(value){field=value.coerceIn(0,32767);invalidate()}
+    private val paint=Paint(Paint.ANTI_ALIAS_FLAG)
+    private val lit=Color.rgb(244,247,251)
+    private val red=Color.rgb(255,35,61)
+    private val dim=Color.rgb(38,42,48)
+    private val columns=36
+
+    override fun onDraw(canvas:Canvas) {
+        super.onDraw(canvas)
+        val widthPx=width.toFloat()
+        val heightPx=height.toFloat()
+        if(widthPx<=0f || heightPx<=0f)return
+        paint.style=Paint.Style.FILL
+        paint.typeface=android.graphics.Typeface.create("sans-serif-medium",
+            android.graphics.Typeface.NORMAL)
+        val labelWidth=24f*resources.displayMetrics.density
+        val padding=8f*resources.displayMetrics.density
+        val available=(widthPx-labelWidth-padding).coerceAtLeast(50f)
+        val gap=3.5f*resources.displayMetrics.density
+        val barWidth=(available/columns-gap).coerceAtLeast(2f)
+        val barHeight=heightPx*0.22f
+        val top1=heightPx*0.17f
+        val top2=heightPx*0.59f
+        paint.color=Color.rgb(163,172,183)
+        paint.textSize=max(13f,heightPx*0.18f)
+        canvas.drawText("L",padding/2,top1+barHeight*0.88f,paint)
+        canvas.drawText("R",padding/2,top2+barHeight*0.88f,paint)
+        val active=(sqrt(level.toDouble()/32767.0)*columns)
+            .toInt().coerceIn(0,columns)
         for(i in 0 until columns) {
-            val start=x0+i*usable/columns
-            p.color=if(i<normalized) {
-                if(i>columns*0.87f)cream else ember
-            }else dim
-            c.drawRoundRect(start,top1,start+barWidth,top1+bh,1.5f,1.5f,p)
-            c.drawRoundRect(start,top2,start+barWidth,top2+bh,1.5f,1.5f,p)
+            val left=labelWidth+i*available/columns
+            paint.color=if(i>=active)dim else if(i>columns*0.87f)red else lit
+            val radius=(barWidth*0.36f).coerceAtMost(4f)
+            canvas.drawRoundRect(left,top1,left+barWidth,top1+barHeight,
+                radius,radius,paint)
+            canvas.drawRoundRect(left,top2,left+barWidth,top2+barHeight,
+                radius,radius,paint)
         }
     }
 }

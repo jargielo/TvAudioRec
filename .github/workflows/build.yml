@@ -1,7 +1,7 @@
-name: Build AudioRelay Recorder v1.8.0 AMOLED MP3 Opus
+name: Build AudioRelay Grabber v1.9.0 AMOLED
 on:
   push:
-    branches: [audiorelay-recorder-v1-8-retro]
+    branches: [audiorelay-grabber-v1-9-amoled]
   workflow_dispatch:
 permissions:
   contents: read
@@ -78,37 +78,58 @@ jobs:
               -lm -llog -o "app/src/main/jniLibs/$ABI/libtvopus.so"
             test -s "app/src/main/jniLibs/$ABI/libtvopus.so"
           done
-      - name: Prepare matching retro icon and TV banner from supplied logo
+      - name: Generate AudioRelay Grabber AMOLED logos, launcher icons and TV banner
         shell: bash
         run: |
           set -euxo pipefail
           python3 -m pip install --quiet Pillow
-          mkdir -p app/src/main/res/drawable-nodpi
+          mkdir -p app/src/main/res/drawable-nodpi app/src/main/assets
           python3 - <<'PY'
-          from PIL import Image
+          from PIL import Image, ImageDraw, ImageFont
           from pathlib import Path
-          source=Image.open('app/src/main/assets/retro_wordmark.webp').convert('RGB')
-          # The same wordmark appears in the header and TV home banner.
-          banner=Image.new('RGB',(640,360),'black')
-          wordmark=source.copy()
-          wordmark.thumbnail((592,250),Image.Resampling.LANCZOS)
-          banner.paste(wordmark,((640-wordmark.width)//2,(360-wordmark.height)//2))
-          banner.save('app/src/main/res/drawable-nodpi/retro_tv_banner.png')
-          # App icon is the vintage VU-meter portion of that exact logo,
-          # large enough to recognize at Android TV launcher sizes.
-          meter=source.crop((0,0,105,source.height))
-          meter.thumbnail((224,224),Image.Resampling.LANCZOS)
-          square=Image.new('RGB',(256,256),'black')
-          square.paste(meter,((256-meter.width)//2,(256-meter.height)//2))
-          square.save('app/src/main/res/drawable-nodpi/retro_launcher.png')
+
+          ROOT=Path('app/src/main')
+          RES=ROOT/'res/drawable-nodpi'
+          ASSETS=ROOT/'assets'
+          BLACK=(0,0,0)
+          WHITE=(248,249,251)
+          RED=(255,35,61)
+          FONT=str(ASSETS/'Manrope.ttf')
+
+          # Exact brand motif: white modern ring interrupted by a red REC dot.
+          icon=Image.new('RGB',(512,512),BLACK)
+          d=ImageDraw.Draw(icon)
+          d.arc((91,91,421,421),5,355,fill=WHITE,width=10)
+          d.ellipse((76,237,116,277),fill=RED)
+          icon.save(RES/'grabber_launcher.png',optimize=True)
+
+          # Header lock-up: two lines, light Manrope, black AMOLED background.
+          # Original TV layout dimensions and two-column proportions stay intact.
+          logo=Image.new('RGB',(900,200),BLACK)
+          d=ImageDraw.Draw(logo)
+          d.arc((16,24,167,175),5,355,fill=WHITE,width=6)
+          d.ellipse((7,90,31,114),fill=RED)
+          font=ImageFont.truetype(FONT,76)
+          d.text((200,20),'AudioRelay',font=font,fill=WHITE,anchor='lt')
+          d.text((200,108),'Grabber',font=font,fill=WHITE,anchor='lt')
+          logo.save(ASSETS/'grabber_wordmark.webp',format='WEBP',quality=96,method=6)
+
+          # Banner on the Android TV home screen, using the same branding.
+          banner=Image.new('RGB',(640,360),BLACK)
+          mark=logo.copy()
+          mark.thumbnail((595,175),Image.Resampling.LANCZOS)
+          banner.paste(mark,((640-mark.width)//2,(360-mark.height)//2))
+          banner.save(RES/'grabber_tv_banner.png',optimize=True)
+
+          assert (RES/'grabber_launcher.png').stat().st_size>1500
+          assert (RES/'grabber_tv_banner.png').stat().st_size>1500
+          assert (ASSETS/'grabber_wordmark.webp').stat().st_size>1500
           PY
-          test -s app/src/main/res/drawable-nodpi/retro_launcher.png
-          test -s app/src/main/res/drawable-nodpi/retro_tv_banner.png
       - name: Compile Android TV APK
         run: gradle assembleDebug --no-daemon --stacktrace
       - name: Upload new installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: AudioRelay-Recorder-v1.8.0-AMOLED-Manrope-APK
+          name: AudioRelay-Grabber-v1.9.0-AMOLED-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

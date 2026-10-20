@@ -11,10 +11,11 @@
     <uses-feature android:name="android.software.leanback" android:required="false"/>
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
     <application
-        android:label="AudioRelay Recorder Retro 1.8"
+        android:label="AudioRelay Grabber"
         android:theme="@android:style/Theme.Material.NoActionBar"
-        android:icon="@drawable/retro_launcher"
-        android:banner="@drawable/retro_tv_banner"
+        android:icon="@drawable/grabber_launcher"
+        android:roundIcon="@drawable/grabber_launcher"
+        android:banner="@drawable/grabber_tv_banner"
         android:usesCleartextTraffic="false"
         android:allowBackup="false">
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape">
