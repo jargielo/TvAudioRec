@@ -152,19 +152,25 @@ class FlacSink(fd: ParcelFileDescriptor, private val rate:Int, private val chann
 }
 
 class CompressedSink(fd:ParcelFileDescriptor, private val rate:Int,
-                     private val channels:Int,private val bitrate:Int, private val mp3:Boolean):AudioSink {
-    private val codec=MediaCodec.createEncoderByType(if(mp3) "audio/mpeg" else MediaFormat.MIMETYPE_AUDIO_AAC)
+                     private val channels:Int,private val bitrate:Int, private val mp3:Boolean,
+                     private val opus:Boolean=false):AudioSink {
+    private val codec=MediaCodec.createEncoderByType(
+        if(opus) MediaFormat.MIMETYPE_AUDIO_OPUS
+        else if(mp3) "audio/mpeg" else MediaFormat.MIMETYPE_AUDIO_AAC)
     private val stream=if(mp3) FileOutputStream(fd.fileDescriptor) else null
-    private val muxer=if(mp3)null else MediaMuxer(fd.fileDescriptor,MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+    private val muxer=if(mp3)null else MediaMuxer(fd.fileDescriptor,if(opus)MediaMuxer.OutputFormat.MUXER_OUTPUT_OGG
+        else MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
     private var track=-1
     private var started=false
     private var frames=0L
     private val info=MediaCodec.BufferInfo()
     init {
-        val f=MediaFormat.createAudioFormat(if(mp3) "audio/mpeg" else MediaFormat.MIMETYPE_AUDIO_AAC,rate,channels)
+        val f=MediaFormat.createAudioFormat(if(opus) MediaFormat.MIMETYPE_AUDIO_OPUS
+            else if(mp3) "audio/mpeg" else MediaFormat.MIMETYPE_AUDIO_AAC,rate,channels)
         f.setInteger(MediaFormat.KEY_BIT_RATE,bitrate)
         f.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE,16384)
-        if(!mp3)f.setInteger(MediaFormat.KEY_AAC_PROFILE,MediaCodecInfo.CodecProfileLevel.AACObjectLC)
+        if(!mp3 && !opus)f.setInteger(MediaFormat.KEY_AAC_PROFILE,
+            MediaCodecInfo.CodecProfileLevel.AACObjectLC)
         codec.configure(f,null,null,MediaCodec.CONFIGURE_FLAG_ENCODE)
         codec.start()
     }
@@ -207,7 +213,7 @@ class CompressedSink(fd:ParcelFileDescriptor, private val rate:Int,
                         if(mp3) {
                             val bytes=ByteArray(info.size);b.get(bytes);stream!!.write(bytes)
                         } else {
-                            if(!started)error("Brak ścieżki M4A")
+                            if(!started)error("Brak ścieżki audio")
                             muxer!!.writeSampleData(track,b,info)
                         }
                     }
@@ -223,7 +229,7 @@ class CompressedSink(fd:ParcelFileDescriptor, private val rate:Int,
         while(i<0){ drain(false);i=codec.dequeueInputBuffer(100000)}
         codec.queueInputBuffer(i,0,0,frames*1000000L/rate,MediaCodec.BUFFER_FLAG_END_OF_STREAM)
         drain(true)
-        if(!mp3 && !started)error("Brak danych M4A")
+        if(!mp3 && !started)error("Brak danych audio")
         stream?.flush()
     }
     override fun close() {
