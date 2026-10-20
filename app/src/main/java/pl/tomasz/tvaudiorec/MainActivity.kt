@@ -269,60 +269,160 @@ class MainActivity : Activity() {
         startService(Intent(this,RecordingService::class.java).setAction(RecordingService.STOP))
         status.text="Kończenie i zapisywanie nagrania..."
     }
+    private fun hasAudioPermission():Boolean {
+        val permission=if(Build.VERSION.SDK_INT>=33)"android.permission.READ_MEDIA_AUDIO"
+            else Manifest.permission.READ_EXTERNAL_STORAGE
+        return checkSelfPermission(permission)==PackageManager.PERMISSION_GRANTED
+    }
+    private fun requestAudioPermission() {
+        val permission=if(Build.VERSION.SDK_INT>=33)"android.permission.READ_MEDIA_AUDIO"
+            else Manifest.permission.READ_EXTERNAL_STORAGE
+        if(!hasAudioPermission())requestPermissions(arrayOf(permission),733)
+    }
     private fun getEntries():List<AudioEntry> {
-        val result=ArrayList<AudioEntry>()
-        val cols=arrayOf(MediaStore.Audio.Media._ID,MediaStore.Audio.Media.DISPLAY_NAME,
-            MediaStore.Audio.Media.SIZE,MediaStore.Audio.Media.DATE_ADDED)
+        val result=linkedMapOf<String,AudioEntry>()
+        val cols=arrayOf(
+            MediaStore.Audio.Media._ID,MediaStore.Audio.Media.DISPLAY_NAME,
+            MediaStore.Audio.Media.SIZE,MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.MediaColumns.RELATIVE_PATH)
         try {
             contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,cols,
-                MediaStore.MediaColumns.RELATIVE_PATH+" LIKE ?",
-                arrayOf("Music/TVAudioRecorder/%"),MediaStore.Audio.Media.DATE_ADDED+" DESC")?.use {c->
+                null,null,MediaStore.Audio.Media.DATE_ADDED+" DESC")?.use {c->
                 while(c.moveToNext()) {
-                    result.add(AudioEntry(
-                        ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,c.getLong(0)),
-                        c.getString(1) ?: "Nagranie",
-                        c.getLong(2),c.getLong(3)))
+                    val name=c.getString(1) ?: continue
+                    val path=c.getString(4) ?: ""
+                    val own=path.contains("TVAudioRecorder",true) ||
+                        name.startsWith("TV_Audio_",true)
+                    if(!allAudio && !own)continue
+                    val uri=ContentUris.withAppendedId(
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,c.getLong(0))
+                    result[uri.toString()]=AudioEntry(uri,name,c.getLong(2),c.getLong(3))
                 }
             }
-        }catch(e:Exception){status.text="Błąd odczytu plików: "+e.message}
-        return result
+        }catch(e:Exception){
+            status.text="Brak dostępu do biblioteki. Wybierz UDZIEL DOSTĘPU DO AUDIO."
+        }
+        val roots=listOfNotNull(getExternalFilesDir(Environment.DIRECTORY_MUSIC),
+            getExternalFilesDir(null))
+        for(dir in roots) try {
+            for(file in dir.listFiles() ?: emptyArray<File>()) {
+                if(!file.isFile || file.extension.lowercase() !in
+                    setOf("m4a","mp4","wav","flac","mp3","aac","ogg"))continue
+                val uri=Uri.fromFile(file)
+                result[uri.toString()]=AudioEntry(uri,file.name,
+                    file.length(),file.lastModified()/1000)
+            }
+        }catch(_:Exception){}
+        return result.values.sortedByDescending {it.added}
+    }
+    private fun importAudio(uri:Uri) {
+        val sourceName=try {
+            contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null,null,null)?.use {c->
+                    if(c.moveToFirst())c.getString(0)else null
+                }
+        }catch(_:Exception){null}
+        val clean=(sourceName ?: "Import_"+System.currentTimeMillis()+".m4a")
+            .replace(Regex("[/\\\\:*?\"<>|]"),"_").take(100)
+        val extension=clean.substringAfterLast(".","m4a").lowercase()
+        if(extension !in setOf("mp3","m4a","mp4","wav","flac","aac","ogg")) {
+            status.text="Nieobsługiwany format: "+clean
+            return
+        }
+        val mime=when(extension) {
+            "mp3"->"audio/mpeg";"m4a","mp4"->"audio/mp4"
+            "wav"->"audio/wav";"flac"->"audio/flac";"ogg"->"audio/ogg"
+            else->"audio/aac"
+        }
+        var saved:Uri?=null
+        try {
+            val values=ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME,clean)
+                put(MediaStore.MediaColumns.RELATIVE_PATH,"Music/TVAudioRecorder/")
+                put(MediaStore.MediaColumns.MIME_TYPE,mime)
+                put(MediaStore.MediaColumns.IS_PENDING,1)
+            }
+            saved=contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,values)
+                ?:error("Nie można zapisać pliku")
+            val output=saved
+            contentResolver.openInputStream(uri).use {input->
+                checkNotNull(input){"Nie można odczytać nagrania"}
+                contentResolver.openOutputStream(output,"w").use {dest->
+                    checkNotNull(dest){"Pamięć TV niedostępna"}
+                    input.copyTo(dest)
+                }
+            }
+            contentResolver.update(output,ContentValues().apply {
+                put(MediaStore.MediaColumns.IS_PENDING,0)
+            },null,null)
+            allAudio=false
+            showPage("Nagrania")
+            status.text="Zaimportowano: "+clean
+        }catch(e:Exception) {
+            if(saved!=null)try{contentResolver.delete(saved,null,null)}catch(_:Exception){}
+            status.text="Import nieudany: "+e.message
+        }
+    }
+    private fun pickImport() {
+        try {
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type="audio/*"
+            },importCode)
+        }catch(e:Exception){
+            status.text="TV nie ma przeglądarki plików: "+e.message
+        }
     }
     private fun trashed(name:String)=prefs.getBoolean("trash."+name,false)
     private fun favorite(name:String)=prefs.getBoolean("favorite."+name,false)
     private fun filesPage(trash:Boolean,onlyFavorite:Boolean) {
         val heading=if(trash)"KOSZ" else if(onlyFavorite)"ULUBIONE NAGRANIA" else "MOJE NAGRANIA"
-        line(heading,if(trash)"Nagrania można odzyskać lub trwale usunąć"
-            else "Sortowanie: "+if(prefs.getBoolean("newest",true))"od najnowszych" else "od najstarszych")
-        if(!trash)panel.addView(btn("↕  ZMIEŃ KOLEJNOŚĆ SORTOWANIA") {
-            prefs.edit().putBoolean("newest",!prefs.getBoolean("newest",true)).apply()
-            showPage(page)
-        })
-        val entries=getEntries().filter {trashed(it.name)==trash && (!onlyFavorite || favorite(it.name))}
+        line(heading,"Biblioteka nagrań: od najnowszych lub najstarszych")
+        if(!trash){
+            panel.addView(btn(if(allAudio)"✓  WSZYSTKIE AUDIO → POKAŻ TYLKO NAGRANIA"
+                else "♫  POKAŻ WSZYSTKIE AUDIO NA TELEWIZORZE") {
+                allAudio=!allAudio;showPage(page)
+            })
+            panel.addView(btn("＋  IMPORTUJ NAGRANIE Z INNEGO FOLDERU"){pickImport()})
+            if(!hasAudioPermission())panel.addView(btn("🔓  UDZIEL DOSTĘPU DO BIBLIOTEKI AUDIO"){
+                requestAudioPermission()
+            })
+            panel.addView(btn("↕  SORTOWANIE: "+if(prefs.getBoolean("newest",true))
+                "NAJNOWSZE PIERWSZE" else "NAJSTARSZE PIERWSZE"){
+                prefs.edit().putBoolean("newest",!prefs.getBoolean("newest",true)).apply()
+                showPage(page)
+            })
+            panel.addView(btn("↻  ODŚWIEŻ NAGRANIA"){showPage(page)})
+        }
+        val entries=getEntries().filter{trashed(it.name)==trash && (!onlyFavorite || favorite(it.name))}
             .let {if(prefs.getBoolean("newest",true))it else it.reversed()}
-        if(entries.isEmpty()){panel.addView(label("Brak nagrań w tej sekcji.",20,subtle));return}
+        panel.addView(label("Znaleziono nagrań: "+entries.size,17,accent))
+        if(entries.isEmpty()){
+            panel.addView(label("Brak widocznych plików. Wybierz WSZYSTKIE AUDIO, "
+                +"UDZIEL DOSTĘPU lub IMPORTUJ NAGRANIE. "
+                +"Pliki prywatne innych aplikacji należy najpierw wyeksportować.",17,subtle))
+            return
+        }
         var group=""
-        for(entry in entries) {
+        for(entry in entries){
             val d=SimpleDateFormat("dd.MM.yyyy",Locale("pl")).format(Date(entry.added*1000))
-            if(d!=group) {
-                group=d
-                panel.addView(label(d,16,subtle))
-            }
-            val row=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
-            val main=btn(entry.name+"    •    "+size(entry.bytes)) {
+            if(d!=group){group=d;panel.addView(label(d,16,subtle))}
+            val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+            val main=btn(entry.name+"    •    "+size(entry.bytes)){
                 if(trash)showTrashActions(entry) else showPlayer(entry)
             }
-            row.addView(main,LinearLayout.LayoutParams(0,dp(65),1f))
-            if(!trash) {
-                row.addView(btn(if(favorite(entry.name))"★" else "☆") {
+            row.addView(main,LinearLayout.LayoutParams(0,dp(67),1f))
+            if(!trash){
+                row.addView(btn(if(favorite(entry.name))"★" else "☆"){
                     prefs.edit().putBoolean("favorite."+entry.name,!favorite(entry.name)).apply()
                     showPage(page)
-                },LinearLayout.LayoutParams(dp(70),dp(65)))
-                row.addView(btn("⋮") {showFileActions(entry)},
-                    LinearLayout.LayoutParams(dp(70),dp(65)))
-            } else row.addView(btn("PRZYWRÓĆ") {
+                },LinearLayout.LayoutParams(dp(66),dp(67)))
+                row.addView(btn("⋮"){showFileActions(entry)},
+                    LinearLayout.LayoutParams(dp(66),dp(67)))
+            }else row.addView(btn("PRZYWRÓĆ"){
                 prefs.edit().putBoolean("trash."+entry.name,false).apply()
                 showPage("Kosz")
-            },LinearLayout.LayoutParams(dp(155),dp(65)))
+            },LinearLayout.LayoutParams(dp(155),dp(67)))
             panel.addView(row)
         }
     }
