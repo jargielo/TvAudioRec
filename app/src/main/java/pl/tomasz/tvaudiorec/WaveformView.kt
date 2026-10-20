@@ -15,14 +15,14 @@ class WaveformView(context:Context):View(context) {
     var liveLevel:Int=0
         set(value){field=value;invalidate()}
     private val paint=Paint(Paint.ANTI_ALIAS_FLAG)
-    private val accent=Color.rgb(255,210,24)
+    private val accent=Color.rgb(239,34,53)
     override fun onDraw(canvas:Canvas) {
         super.onDraw(canvas)
         val w=width.toFloat()
         val h=height.toFloat()
-        canvas.drawColor(Color.rgb(22,34,47))
+        canvas.drawColor(Color.BLACK)
         paint.strokeWidth=1f
-        paint.color=Color.rgb(55,72,87)
+        paint.color=Color.rgb(45,45,49)
         for(i in 0..12) {
             val x=i*w/12f
             canvas.drawLine(x,12f,x,h-12f,paint)
@@ -39,12 +39,12 @@ class WaveformView(context:Context):View(context) {
             for(i in items.indices) {
                 val value=(items[i].toFloat()/maxVal).coerceIn(0.025f,1f)
                 val bh=value*(h*0.42f)
-                paint.color=if(i.toFloat()/items.size<=progress) accent else Color.rgb(190,202,215)
+                paint.color=if(i.toFloat()/items.size<=progress) accent else Color.rgb(156,157,163)
                 val x=(i+0.5f)*spacing
                 canvas.drawLine(x,middle-bh,x,middle+bh,paint)
             }
         } else {
-            paint.color=Color.rgb(135,155,172)
+            paint.color=Color.rgb(150,150,153)
             paint.textSize=19f
             canvas.drawText("Przebieg dźwięku pojawi się po zapisaniu nagrania",18f,middle,paint)
         }
