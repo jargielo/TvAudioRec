@@ -235,7 +235,7 @@ class MainActivity : Activity() {
         typeface=uiFont
         isAllCaps=false
         isFocusable=true
-        isSingleLine=true
+        setSingleLine(true)
         ellipsize=android.text.TextUtils.TruncateAt.END
         setTextColor(textColor)
         setPadding(dp(6),dp(3),dp(6),dp(3))
