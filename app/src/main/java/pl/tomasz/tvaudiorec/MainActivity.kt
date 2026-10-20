@@ -336,39 +336,59 @@ class MainActivity : Activity() {
     }
     private fun getEntries():List<AudioEntry> {
         val result=linkedMapOf<String,AudioEntry>()
-        val cols=arrayOf(
-            MediaStore.Audio.Media._ID,MediaStore.Audio.Media.DISPLAY_NAME,
-            MediaStore.Audio.Media.SIZE,MediaStore.Audio.Media.DATE_ADDED,
-            MediaStore.MediaColumns.RELATIVE_PATH)
-        try {
-            contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,cols,
-                null,null,MediaStore.Audio.Media.DATE_ADDED+" DESC")?.use {c->
-                while(c.moveToNext()) {
-                    val name=c.getString(1) ?: continue
-                    val path=c.getString(4) ?: ""
-                    val own=path.contains("TVAudioRecorder",true) ||
-                        name.startsWith("TV_Audio_",true)
-                    if(!allAudio && !own)continue
-                    val uri=ContentUris.withAppendedId(
-                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,c.getLong(0))
-                    result[uri.toString()]=AudioEntry(uri,name,c.getLong(2),c.getLong(3))
+        // Prefer saved-by-this-app catalog: works even if Android media
+        // scanning is delayed or the library read permission is missing.
+        for(item in RecordingIndex.entries(this)) {
+            try {
+                contentResolver.openFileDescriptor(item.uri,"r")?.use {
+                    result[item.uri.toString()]=AudioEntry(
+                        item.uri,item.name,item.size,item.timestamp)
                 }
-            }
-        }catch(e:Exception){
-            status.text="Brak dostępu do biblioteki. Wybierz UDZIEL DOSTĘPU DO AUDIO."
+            }catch (_:Exception){}
         }
-        val roots=listOfNotNull(getExternalFilesDir(Environment.DIRECTORY_MUSIC),
-            getExternalFilesDir(null))
-        for(dir in roots) try {
+
+        val columns=arrayOf(MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.DISPLAY_NAME,MediaStore.Audio.Media.SIZE,
+            MediaStore.Audio.Media.DATE_ADDED)
+        val collection=MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        fun appendQuery(selection:String?,args:Array<String>?) {
+            try {
+                contentResolver.query(collection,columns,selection,args,
+                    MediaStore.Audio.Media.DATE_ADDED+" DESC")?.use {cursor->
+                    while(cursor.moveToNext()) {
+                        val uri=ContentUris.withAppendedId(collection,cursor.getLong(0))
+                        val item=AudioEntry(uri,cursor.getString(1) ?: "Nagranie",
+                            cursor.getLong(2),cursor.getLong(3))
+                        result.putIfAbsent(uri.toString(),item)
+                    }
+                }
+            }catch(e:Exception){
+                android.util.Log.w("TVAudioRecorder","MediaStore access denied",e)
+            }
+        }
+        // A narrow query can expose the app's own files without broad
+        // READ_EXTERNAL_STORAGE or READ_MEDIA_AUDIO permission.
+        appendQuery(MediaStore.MediaColumns.RELATIVE_PATH+" LIKE ?",
+            arrayOf("Music/TVAudioRecorder/%"))
+        if(allAudio && hasAudioPermission())appendQuery(null,null)
+
+        // Recovery scan for previous app versions using the public Music folder.
+        val publicDir=File(Environment.getExternalStoragePublicDirectory(
+            Environment.DIRECTORY_MUSIC),"TVAudioRecorder")
+        val directories=listOfNotNull(publicDir,
+            getExternalFilesDir(Environment.DIRECTORY_MUSIC),getExternalFilesDir(null))
+        for(dir in directories)try {
             for(file in dir.listFiles() ?: emptyArray<File>()) {
                 if(!file.isFile || file.extension.lowercase() !in
                     setOf("m4a","mp4","wav","flac","mp3","aac","ogg"))continue
+                if(result.values.any {it.name==file.name && it.bytes==file.length()})
+                    continue
                 val uri=Uri.fromFile(file)
                 result[uri.toString()]=AudioEntry(uri,file.name,
-                    file.length(),file.lastModified()/1000)
+                    file.length(),file.lastModified()/1000L)
             }
-        }catch(_:Exception){}
-        return result.values.sortedByDescending {it.added}
+        }catch (_:Exception){}
+        return result.values.sortedByDescending{it.added}
     }
     private fun importAudio(uri:Uri) {
         val sourceName=try {
