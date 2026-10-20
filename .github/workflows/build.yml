@@ -1,7 +1,7 @@
-name: Build TV Audio Recorder v1.2.0 APK
+name: Build TV Audio Recorder v1.3.0 with MP3
 on:
   push:
-    branches: [tv-audio-recorder-v1-2-0-fix]
+    branches: [tv-audio-recorder-v1-3-mp3-lame]
   workflow_dispatch:
 permissions:
   contents: read
@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
+      - name: Checkout app sources
         uses: actions/checkout@v4
       - name: Java 17
         uses: actions/setup-java@v4
@@ -20,11 +20,31 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: Compile debug APK
+      - name: Compile software LAME MP3 encoder for Android TV
+        shell: bash
+        run: |
+          set -euxo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'ndk;26.3.11579264' || test -d "$ANDROID_HOME/ndk/26.3.11579264"
+          git clone --depth 1 https://github.com/xieyangxuejun/libmp3lame-android.git /tmp/lame-android
+          mkdir -p native-build/jni app/src/main/jniLibs
+          cp -R /tmp/lame-android/jni/libmp3lame native-build/jni/
+          cp -R /tmp/lame-android/jni/include native-build/jni/
+          cp native/mp3_bridge.c native-build/jni/mp3_bridge.c
+          "$ANDROID_HOME/ndk/26.3.11579264/ndk-build" \
+            NDK_PROJECT_PATH="$GITHUB_WORKSPACE/native-build" \
+            APP_BUILD_SCRIPT="$GITHUB_WORKSPACE/native/Android.mk" \
+            NDK_APPLICATION_MK="$GITHUB_WORKSPACE/native/Application.mk" \
+            NDK_OUT="$GITHUB_WORKSPACE/native-build/obj" \
+            NDK_LIBS_OUT="$GITHUB_WORKSPACE/app/src/main/jniLibs" \
+            -j 3
+          find app/src/main/jniLibs -type f -name 'libtvmp3.so' -exec ls -lh {} \;
+          test -s app/src/main/jniLibs/arm64-v8a/libtvmp3.so
+          test -s app/src/main/jniLibs/armeabi-v7a/libtvmp3.so
+      - name: Compile Android TV APK
         run: gradle assembleDebug --no-daemon --stacktrace
-      - name: Upload installable APK
+      - name: Upload new installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: TV-Audio-Recorder-v1.2.0-APK
+          name: TV-Audio-Recorder-v1.3.0-LAME-MP3-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
