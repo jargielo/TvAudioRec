@@ -30,9 +30,10 @@ jobs:
           cp -R /tmp/lame-android/jni/libmp3lame native-build/jni/
           cp -R /tmp/lame-android/jni/include native-build/jni/
           cp native/mp3_bridge.c native-build/jni/mp3_bridge.c
+          cp native/Android.mk native-build/jni/Android.mk
           "$ANDROID_HOME/ndk/26.3.11579264/ndk-build" \
             NDK_PROJECT_PATH="$GITHUB_WORKSPACE/native-build" \
-            APP_BUILD_SCRIPT="$GITHUB_WORKSPACE/native/Android.mk" \
+            APP_BUILD_SCRIPT="$GITHUB_WORKSPACE/native-build/jni/Android.mk" \
             NDK_APPLICATION_MK="$GITHUB_WORKSPACE/native/Application.mk" \
             NDK_OUT="$GITHUB_WORKSPACE/native-build/obj" \
             NDK_LIBS_OUT="$GITHUB_WORKSPACE/app/src/main/jniLibs" \
