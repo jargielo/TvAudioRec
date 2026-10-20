@@ -135,7 +135,7 @@ class RecordingService : Service() {
     }
     private fun recordNow(source:String, code:Int, permission:Intent?) {
         var sink:AudioSink?=null
-        var file:Uri?=null
+        var created:RecordingLibrary.Output?=null
         var desc:ParcelFileDescriptor?=null
         var wake:PowerManager.WakeLock?=null
         var success=false
@@ -173,15 +173,8 @@ class RecordingService : Service() {
             }
             val name="TV_Audio_"+SimpleDateFormat("yyyy-MM-dd_HH-mm-ss",Locale.ROOT)
                 .format(Date())+"."+extension
-            val values=ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME,name)
-                put(MediaStore.MediaColumns.MIME_TYPE,mime)
-                put(MediaStore.MediaColumns.RELATIVE_PATH,"Music/TVAudioRecorder/")
-                put(MediaStore.MediaColumns.IS_PENDING,1)
-            }
-            file=contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,values)
-                ?:error("Nie można utworzyć pliku")
-            desc=contentResolver.openFileDescriptor(file!!,"rw") ?: error("Pamięć TV jest niedostępna")
+            created=RecordingLibrary.create(this,name,mime)
+            desc=created.fd
             sink=when(fmt) {
                 "WAV"->WavSink(desc,rate,channels)
                 "FLAC"->FlacSink(desc,rate,channels)
@@ -253,6 +246,7 @@ class RecordingService : Service() {
             } else lastResult="Nie zapisano pustego nagrania"
         } catch (e:Exception) {
             lastResult="Błąd nagrywania: "+(e.message ?: e.javaClass.simpleName)
+            settings.edit().putString("last_recording_result",lastResult).commit()
             android.util.Log.e("TVAudioRecorder",lastResult,e)
         } finally {
             isRecording=false
@@ -264,23 +258,13 @@ class RecordingService : Service() {
             playbackRecord=null;micRecord=null
             try{sink?.close()}catch (_:Exception){}
             try{desc?.close()}catch (_:Exception){}
-            if(file!=null)try {
-                if(success) {
-                    contentResolver.update(file!!,ContentValues().apply {
-                        put(MediaStore.MediaColumns.IS_PENDING,0)
-                    },null,null)
-                    var length=0L
-                    contentResolver.query(file!!,
-                        arrayOf(MediaStore.MediaColumns.SIZE),null,null,null)?.use { cursor ->
-                        if(cursor.moveToFirst())length=cursor.getLong(0)
-                    }
-                    val savedName=lastResult.removePrefix("Zapisano: ").trim()
-                    RecordingIndex.save(this,file!!,savedName,length,
-                        System.currentTimeMillis()/1000L)
-                } else contentResolver.delete(file!!,null,null)
+            if(created!=null)try{
+                lastResult=RecordingLibrary.finalize(this,created!!,success)
+                settings.edit().putString("last_recording_result",lastResult).commit()
             }catch(e:Exception) {
-                lastResult="Plik zapisany, ale wystąpił błąd katalogu: "+e.message
-                android.util.Log.e("TVAudioRecorder","Recording index issue",e)
+                lastResult="Błąd finalizacji pliku: "+e.message
+                settings.edit().putString("last_recording_result",lastResult).commit()
+                android.util.Log.e("TVAudioRecorder","Finalization failed",e)
             }
             try{projection?.stop()}catch (_:Exception){}
             projection=null
