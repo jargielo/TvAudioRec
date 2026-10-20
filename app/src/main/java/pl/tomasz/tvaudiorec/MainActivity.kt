@@ -393,7 +393,7 @@ class MainActivity : Activity() {
     }
 
     private fun recordPage() {
-        line("REJESTRATOR DŹWIĘKU","Wszystkie najważniejsze opcje na jednym ekranie")
+        line("REJESTRATOR DŹWIĘKU","Źródło, format, kHz i kanały — bez przewijania")
         val choices=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
         val source=prefs.getString("source","Internal") ?: "Internal"
         compactChoice(choices,"Źródło",sourceName(),source,listOf(
@@ -424,32 +424,44 @@ class MainActivity : Activity() {
             prefs.edit().putInt("channels",it.toInt()).commit()
         }
         panel.addView(choices)
-        panel.addView(space(9))
-        panel.addView(btn("⚙  Więcej ustawień i jakość Opus / MP3") {
+        panel.addView(space(5))
+        panel.addView(btn("⚙  USTAWIENIA I JAKOŚĆ NAGRANIA") {
             showPage("Ustawienia")
-        },LinearLayout.LayoutParams(-1,dp(43)))
-        panel.addView(space(12))
-        timer=label("00:00",62,accent).also {
-            it.gravity=Gravity.CENTER
-            panel.addView(it,LinearLayout.LayoutParams(-1,dp(91)))
+        },LinearLayout.LayoutParams(-1,dp(39)))
+        panel.addView(space(8))
+        val clockFrame=LinearLayout(this).apply {
+            orientation=LinearLayout.HORIZONTAL
+            gravity=Gravity.CENTER
+            setPadding(dp(8),dp(5),dp(8),dp(5))
         }
+        timer=label("00:00",53,accent).also {
+            it.gravity=Gravity.CENTER
+            it.typeface=Typeface.create(uiFont,Typeface.BOLD)
+            it.background=rounded(Color.rgb(17,16,14),vintageBorder)
+            clockFrame.addView(it,LinearLayout.LayoutParams(dp(276),dp(75)))
+        }
+        panel.addView(clockFrame,LinearLayout.LayoutParams(-1,dp(86)))
         panel.addView(label(if(RecordingService.isRecording)"●  TRWA NAGRYWANIE"
             else "GOTOWY DO NAGRYWANIA",11,subtle).apply {
                 gravity=Gravity.CENTER
-        },LinearLayout.LayoutParams(-1,dp(21)))
-        panel.addView(space(18))
+        },LinearLayout.LayoutParams(-1,dp(19)))
+        panel.addView(space(7))
+        retroMeter=RetroVuMeter(this).also {
+            panel.addView(it,LinearLayout.LayoutParams(-1,dp(83)))
+        }
+        panel.addView(space(8))
         val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
         actions.addView(btn("●  ROZPOCZNIJ NAGRYWANIE"){startRecording()},
-            LinearLayout.LayoutParams(0,dp(54),1.15f).apply {
+            LinearLayout.LayoutParams(0,dp(51),1.15f).apply {
                 setMargins(0,0,dp(6),0)
             })
         actions.addView(btn("■  STOP I ZAPISZ"){stopRecording()},
-            LinearLayout.LayoutParams(0,dp(54),0.9f))
+            LinearLayout.LayoutParams(0,dp(51),0.9f))
         panel.addView(actions)
-        panel.addView(space(10))
-        panel.addView(btn("⌂  Wróć do telewizji (nagrywanie w tle)") {
+        panel.addView(space(6))
+        panel.addView(btn("⌂  Wróć do telewizji — nagrywaj w tle") {
             startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME))
-        },LinearLayout.LayoutParams(-1,dp(39)))
+        },LinearLayout.LayoutParams(-1,dp(35)))
     }
     private fun playerOverview() {
         line("ODTWARZACZ","Wybierz plik z listy po prawej stronie")
@@ -1008,7 +1020,7 @@ class MainActivity : Activity() {
                         selectedEntry=record
                         renderRight(record)
                     }
-                    if(current)pick.background=rounded(Color.rgb(65,5,14),accent)
+                    if(current)pick.background=rounded(Color.rgb(89,35,28),accent)
                     row.addView(pick,LinearLayout.LayoutParams(0,dp(37),1f))
                     row.addView(btn("▶"){togglePlay(record)},
                         LinearLayout.LayoutParams(dp(43),dp(37)))
@@ -1018,7 +1030,9 @@ class MainActivity : Activity() {
             rightPanel.addView(space(8))
         }
 
-        rightPanel.addView(label("ODTWARZACZ",18,textColor),
+        rightPanel.addView(label("ODTWARZACZ",18,textColor).apply{
+            typeface=Typeface.create(uiFont,Typeface.BOLD)
+        },
             LinearLayout.LayoutParams(-1,dp(29)))
         if(item==null){
             rightPanel.addView(label("Wybierz nagranie z listy.",12,subtle))
