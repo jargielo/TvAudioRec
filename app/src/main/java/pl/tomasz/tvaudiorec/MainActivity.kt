@@ -505,8 +505,27 @@ class MainActivity : Activity() {
             trashed(it.name)==trash && (!onlyFavorite || favorite(it.name))
         }.let{if(prefs.getBoolean("newest",true))it else it.reversed()}
 
-        // Results are ABOVE the management buttons, visible without scrolling.
-        panel.addView(label("Znaleziono: "+entries.size+" nagrań",23,accent))
+        panel.addView(label("Znaleziono: "+entries.size+" nagrań",17,textColor))
+        val controls=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+        controls.addView(btn(if(multiSelect)"ANULUJ ZAZNACZANIE" else "☑  ZAZNACZ WIELE"){
+            multiSelect=!multiSelect
+            marked.clear()
+            showPage(page,false)
+        },LinearLayout.LayoutParams(0,dp(39),1f))
+        if(multiSelect) {
+            controls.addView(btn("WSZYSTKIE") {
+                marked.clear()
+                marked.addAll(entries.map{it.uri.toString()})
+                showPage(page,false)
+            },LinearLayout.LayoutParams(0,dp(39),0.7f))
+        }
+        panel.addView(controls)
+        if(multiSelect) {
+            panel.addView(btn("☒  "+if(trash)"USUŃ TRWALE" else "DO KOSZA"+
+                "  ("+marked.size+")") {confirmBatchDelete(entries,trash)},
+                LinearLayout.LayoutParams(-1,dp(39)))
+            panel.addView(label("Zaznaczono: "+marked.size+" z "+entries.size,12,subtle))
+        }
         if(entries.isEmpty()){
             panel.addView(label("Brak nagrań. Użyj TESTU ZAPISU poniżej, "+
                 "aby sprawdzić, czy telewizor zapisuje i wyświetla pliki.",17,subtle))
@@ -520,22 +539,30 @@ class MainActivity : Activity() {
                     panel.addView(label(date,16,subtle))
                 }
                 val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-                row.addView(btn(entry.name+"   •   "+size(entry.bytes)) {
-                    if(trash)showTrashActions(entry) else showPlayer(entry)
-                },LinearLayout.LayoutParams(0,dp(64),1f))
-                if(!trash){
+                if(multiSelect)row.addView(btn(
+                    if(marked.contains(entry.uri.toString()))"☑" else "☐") {
+                    if(!marked.add(entry.uri.toString()))marked.remove(entry.uri.toString())
+                    showPage(page,false)
+                },LinearLayout.LayoutParams(dp(38),dp(42)))
+                row.addView(btn(entry.name+"  •  "+size(entry.bytes)) {
+                    if(multiSelect) {
+                        if(!marked.add(entry.uri.toString()))marked.remove(entry.uri.toString())
+                        showPage(page,false)
+                    }else if(trash)showTrashActions(entry) else showPlayer(entry)
+                },LinearLayout.LayoutParams(0,dp(42),1f))
+                if(!trash && !multiSelect){
                     row.addView(btn(if(favorite(entry.name))"★" else "☆") {
                         prefs.edit().putBoolean("favorite."+entry.name,
                             !favorite(entry.name)).apply()
                         showPage(page,false)
-                    },LinearLayout.LayoutParams(dp(62),dp(64)))
+                    },LinearLayout.LayoutParams(dp(38),dp(42)))
                     row.addView(btn("⋮"){showFileActions(entry)},
                         LinearLayout.LayoutParams(dp(62),dp(64)))
-                } else {
+                } else if(trash && !multiSelect) {
                     row.addView(btn("PRZYWRÓĆ"){
                         prefs.edit().putBoolean("trash."+entry.name,false).apply()
                         showPage("Kosz",false)
-                    },LinearLayout.LayoutParams(dp(145),dp(64)))
+                    },LinearLayout.LayoutParams(dp(77),dp(42)))
                 }
                 panel.addView(row)
             }
@@ -618,6 +645,52 @@ class MainActivity : Activity() {
             "mogą znajdować się w odrębnym, prywatnym katalogu Android/data. "+
             "Wtedy użyj funkcji importu w Moich nagraniach.",14,subtle))
     }
+    private fun confirmBatchDelete(entries:List<AudioEntry>,permanent:Boolean) {
+        val chosen=entries.filter{marked.contains(it.uri.toString())}
+        if(chosen.isEmpty()){
+            status.text="Nie zaznaczono żadnych plików."
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(if(permanent)"Usunąć na stałe "+chosen.size+" nagrań?"
+                else "Przenieść do kosza "+chosen.size+" nagrań?")
+            .setMessage(if(permanent)
+                "Tych plików nie będzie można odzyskać."
+                else "Pliki zostaną ukryte na liście, a później można je przywrócić z Kosza.")
+            .setNegativeButton("ANULUJ",null)
+            .setPositiveButton(if(permanent)"USUŃ TRWALE" else "DO KOSZA") {_,_->
+                var successes=0
+                var failures=0
+                val editor=prefs.edit()
+                for(entry in chosen) {
+                    try {
+                        if(permanent){
+                            val removed=if(entry.uri.scheme=="file") {
+                                val path=entry.uri.path ?:error("Brak ścieżki")
+                                File(path).delete()
+                            }else contentResolver.delete(entry.uri,null,null)>0
+                            check(removed){"Android odmówił usunięcia pliku"}
+                            RecordingIndex.delete(this,entry.uri)
+                            editor.remove("trash."+entry.name)
+                                .remove("favorite."+entry.name)
+                                .remove("wave."+entry.name)
+                        } else editor.putBoolean("trash."+entry.name,true)
+                        successes++
+                    }catch(e:Exception) {
+                        failures++
+                        android.util.Log.e("AudioRelayRecorder","Bulk remove failed",e)
+                    }
+                }
+                editor.apply()
+                marked.clear()
+                multiSelect=false
+                showPage(page,false)
+                status.text=if(failures==0)"Przetworzono "+successes+" plików."
+                    else "Przetworzono "+successes+"; błędy: "+failures+
+                        ". Sprawdź uprawnienia do plików."
+            }.show()
+    }
+
     private fun showFileActions(entry:AudioEntry) {
         AlertDialog.Builder(this).setTitle(entry.name)
             .setItems(arrayOf("Odtwórz","Zmień nazwę","Dodaj / usuń ulubione","Przenieś do kosza")) {_,which->
