@@ -18,6 +18,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
+      - name: Add exact AudioRelay launcher icon and Manrope for tests
+        shell: bash
+        run: |
+          mkdir -p app/src/main/assets/fonts app/src/main/res/drawable-nodpi
+          base64 -d design/brand-logo.jpg.base64 > app/src/main/assets/brand_logo.jpg
+          cp app/src/main/assets/brand_logo.jpg app/src/main/res/drawable-nodpi/ic_launcher.jpg
+          cp app/src/main/assets/brand_logo.jpg app/src/main/res/drawable-nodpi/tv_banner.jpg
+          curl -fL --retry 3 'https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/Manrope%5Bwght%5D.ttf' -o app/src/main/assets/fonts/manrope.ttf
       - name: Enable KVM for Android emulator
         run: |
           sudo usermod -aG kvm "$USER"
