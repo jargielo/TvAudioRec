@@ -6,11 +6,11 @@ android {
     namespace = "pl.tomasz.tvaudiorec"
     compileSdk = 34
     defaultConfig {
-        applicationId = "pl.n2s.audiorelayrecorder.v17"
+        applicationId = "pl.n2s.audiorelayrecorder.retro18"
         minSdk = 29
         targetSdk = 32
-        versionCode = 17
-        versionName = "1.7.0"
+        versionCode = 18
+        versionName = "1.8.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
