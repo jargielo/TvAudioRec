@@ -690,50 +690,145 @@ class MainActivity : Activity() {
             }
             .setNegativeButton("ANULUJ",null).show()
     }
-    private fun showPlayer(entry:AudioEntry,saveHistory:Boolean=true) {
-        if(saveHistory && page!="Odtwarzacz")history.addLast(page)
-        page="Odtwarzacz"
-        panel.removeAllViews()
-        line("ODTWARZACZ","Nagranie: "+entry.name)
-        panel.addView(label(size(entry.bytes),17,subtle))
-        val wave=WaveformView(this)
-        waveform=wave
-        wave.peaks=prefs.getString("wave."+entry.name,"").orEmpty()
-            .split(",").mapNotNull {it.toIntOrNull()}
-        panel.addView(wave,LinearLayout.LayoutParams(-1,dp(195)))
-        clock=label("00:00",40,accent).also {
-            it.gravity=Gravity.CENTER;panel.addView(it)
-        }
-        val seek=SeekBar(this).apply {max=1000;progress=0}
-        playSeek=seek
-        panel.addView(seek)
-        seek.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s:SeekBar?,v:Int,fromUser:Boolean) {
-                if(fromUser) {
-                    try{player?.let {if(it.duration>0)it.seekTo((it.duration.toLong()*v/1000).toInt())}}
-                    catch (_:Exception){}
-                }
-            }
-            override fun onStartTrackingTouch(s:SeekBar?){}
-            override fun onStopTrackingTouch(s:SeekBar?){}
-        })
-        val row=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
-        row.addView(btn("↶  -10 s") {skip(-10000)},LinearLayout.LayoutParams(0,dp(62),1f))
-        playButton=btn("▶  ODTWÓRZ") {togglePlay(entry)}.also {
-            row.addView(it,LinearLayout.LayoutParams(0,dp(62),2f))
-        }
-        row.addView(btn("+10 s  ↷") {skip(10000)},LinearLayout.LayoutParams(0,dp(62),1f))
-        panel.addView(row)
-        panel.addView(btn(if(loop)"⟲  POWTARZANIE WŁ." else "⟲  POWTARZANIE WYŁ.") {
-            loop=!loop;player?.isLooping=loop;showPlayer(entry)
-        })
-        panel.addView(btn("☆  ULUBIONE / USUŃ / ZMIEŃ NAZWĘ") {showFileActions(entry)})
-        panel.addView(btn("←  WSTECZ DO LISTY") {previousScreen()})
-        if(playing?.uri!=entry.uri) {
-            player?.release();player=null;playing=null
-        }
-        if(playing?.uri==entry.uri)playButton?.text=if(player?.isPlaying==true)"❚❚  PAUZA" else "▶  ODTWÓRZ"
+    private fun showSizeSelector() {
+        val choices=arrayOf("S — kompaktowa","M — standardowa","L — powiększona")
+        val values=arrayOf("S","M","L")
+        val current=values.indexOf(prefs.getString("ui_size","M")).coerceAtLeast(0)
+        AlertDialog.Builder(this).setTitle("Wielkość interfejsu — Manrope")
+            .setSingleChoiceItems(choices,current) {dialog,index->
+                prefs.edit().putString("ui_size",values[index]).commit()
+                dialog.dismiss()
+                recreate()
+            }.setNegativeButton("ANULUJ",null).show()
     }
+
+    private fun quickField(
+        container:LinearLayout,title:String,current:String,choices:List<Pair<String,String>>,
+        selected:String,onChange:(String)->Unit
+    ) {
+        val row=LinearLayout(this).apply {
+            orientation=LinearLayout.HORIZONTAL
+            gravity=Gravity.CENTER_VERTICAL
+        }
+        row.addView(label(title,12,subtle),LinearLayout.LayoutParams(0,dp(35),1.0f))
+        row.addView(btn("▾  "+current) {
+            val idx=choices.indexOfFirst{it.second==selected}.coerceAtLeast(0)
+            AlertDialog.Builder(this).setTitle(title)
+                .setSingleChoiceItems(choices.map{it.first}.toTypedArray(),idx) {dialog,which->
+                    val value=choices[which].second
+                    if(title=="Format" && value=="MP3" && !Mp3Native.available()) {
+                        status.text="Brak biblioteki LAME MP3"
+                    }else onChange(value)
+                    dialog.dismiss()
+                    showPage(page,false)
+                }.setNegativeButton("ANULUJ",null).show()
+        },LinearLayout.LayoutParams(0,dp(35),1.2f))
+        container.addView(row)
+    }
+
+    private fun quickSettings() {
+        rightPanel.addView(space(8))
+        rightPanel.addView(label("SZYBKIE USTAWIENIA NAGRYWANIA",15,textColor))
+        val src=prefs.getString("source","Internal") ?: "Internal"
+        quickField(rightPanel,"Źródło",sourceName(),listOf(
+            "Wewnętrzny" to "Internal","Mikrofon" to "Microphone",
+            "Wewnętrzny + Mic" to "Internal + Mic",
+            "Wewnętrzny + Bluetooth" to "Internal + Bluetooth"
+        ),src){prefs.edit().putString("source",it).commit()}
+        val format=prefs.getString("format","M4A") ?: "M4A"
+        quickField(rightPanel,"Format",format,listOf(
+            "MP3" to "MP3","M4A" to "M4A","MP4 (tylko audio)" to "MP4",
+            "FLAC" to "FLAC","WAV" to "WAV"
+        ),format){prefs.edit().putString("format",it).commit()}
+        val rate=prefs.getInt("rate",48000).toString()
+        quickField(rightPanel,"kHz",when(rate){
+            "44100"->"44,1 kHz"
+            else->(rate.toInt()/1000).toString()+" kHz"
+        },listOf(
+            "8 kHz" to "8000","16 kHz" to "16000","22,05 kHz" to "22050",
+            "32 kHz" to "32000","44,1 kHz" to "44100","48 kHz" to "48000"
+        ),rate){prefs.edit().putInt("rate",it.toInt()).commit()}
+        val count=prefs.getInt("channels",2).toString()
+        quickField(rightPanel,"Kanały",if(count=="1")"Mono" else "Stereo",
+            listOf("Mono" to "1","Stereo" to "2"),count){
+            prefs.edit().putInt("channels",it.toInt()).commit()
+        }
+        rightPanel.addView(btn(if(RecordingService.isRecording)
+            "■  STOP — ZAPISZ NAGRANIE"
+            else "●  REC — ROZPOCZNIJ NAGRYWANIE") {
+            if(RecordingService.isRecording)stopRecording() else startRecording()
+        },LinearLayout.LayoutParams(-1,dp(43)))
+        rightPanel.addView(label(
+            if(RecordingService.isRecording)"TRWA NAGRYWANIE"
+            else "NAGRYWANIE WEWNĘTRZNE / MIKROFON",10,accent))
+    }
+
+    private fun renderRight(entry:AudioEntry?) {
+        if(!::rightPanel.isInitialized)return
+        rightPanel.removeAllViews()
+        rightPanel.addView(label("ODTWARZACZ",17,textColor))
+        if(entry==null){
+            rightPanel.addView(label("Wybierz nagranie z listy.",14,subtle))
+            val blank=WaveformView(this).apply {progress=0f}
+            rightPanel.addView(blank,LinearLayout.LayoutParams(-1,dp(145)))
+        } else {
+            if(playing?.uri!=null && playing?.uri!=entry.uri) {
+                player?.release();player=null;playing=null
+            }
+            selectedEntry=entry
+            rightPanel.addView(label(entry.name,16,textColor))
+            rightPanel.addView(label(size(entry.bytes)+"   •   "+
+                entry.name.substringAfterLast(".","").uppercase(),11,subtle))
+            waveform=WaveformView(this).apply {
+                peaks=prefs.getString("wave."+entry.name,"").orEmpty()
+                    .split(",").mapNotNull{it.toIntOrNull()}
+            }
+            rightPanel.addView(waveform,LinearLayout.LayoutParams(-1,dp(118)))
+            val track=LinearLayout(this).apply{
+                orientation=LinearLayout.HORIZONTAL
+                gravity=Gravity.CENTER_VERTICAL
+            }
+            clock=label("00:00",12,subtle)
+            track.addView(clock,LinearLayout.LayoutParams(dp(43),dp(25)))
+            playSeek=SeekBar(this).apply{max=1000}
+            track.addView(playSeek,LinearLayout.LayoutParams(0,dp(30),1f))
+            track.addView(label("—",12,subtle),LinearLayout.LayoutParams(dp(24),dp(25)))
+            rightPanel.addView(track)
+            playSeek?.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seek:SeekBar?,value:Int,fromUser:Boolean){
+                    if(fromUser)try {
+                        player?.let{ if(it.duration>0)
+                            it.seekTo((it.duration.toLong()*value/1000).toInt())
+                        }
+                    }catch(_:Exception){}
+                }
+                override fun onStartTrackingTouch(seek:SeekBar?){}
+                override fun onStopTrackingTouch(seek:SeekBar?){}
+            })
+            val transport=LinearLayout(this).apply{
+                orientation=LinearLayout.HORIZONTAL
+                gravity=Gravity.CENTER_VERTICAL
+            }
+            transport.addView(btn("−10 s"){skip(-10000)},
+                LinearLayout.LayoutParams(0,dp(45),1f))
+            playButton=btn(if(player?.isPlaying==true)"❚❚  PAUZA" else "▶  PLAY"){
+                togglePlay(entry)
+            }
+            transport.addView(playButton,LinearLayout.LayoutParams(0,dp(45),1.5f))
+            transport.addView(btn("+10 s"){skip(10000)},
+                LinearLayout.LayoutParams(0,dp(45),1f))
+            rightPanel.addView(transport)
+            rightPanel.addView(btn("☆  ULUBIONE      ⋮  WIĘCEJ") {
+                showFileActions(entry)
+            },LinearLayout.LayoutParams(-1,dp(36)))
+        }
+        quickSettings()
+    }
+
+    private fun showPlayer(entry:AudioEntry,saveHistory:Boolean=true){
+        renderRight(entry)
+    }
+
     private fun togglePlay(entry:AudioEntry) {
         try {
             if(playing?.uri!=entry.uri || player==null) {
