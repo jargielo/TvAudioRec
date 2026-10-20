@@ -435,13 +435,13 @@ class MainActivity : Activity() {
         val clean=(sourceName ?: "Import_"+System.currentTimeMillis()+".m4a")
             .replace(Regex("[/\\\\:*?\"<>|]"),"_").take(100)
         val extension=clean.substringAfterLast(".","m4a").lowercase()
-        if(extension !in setOf("mp3","m4a","mp4","wav","flac","aac","ogg")) {
+        if(extension !in setOf("mp3","m4a","mp4","wav","flac","aac","ogg","opus")) {
             status.text="Nieobsługiwany format: "+clean
             return
         }
         val mime=when(extension) {
             "mp3"->"audio/mpeg";"m4a","mp4"->"audio/mp4"
-            "wav"->"audio/wav";"flac"->"audio/flac";"ogg"->"audio/ogg"
+            "wav"->"audio/wav";"flac"->"audio/flac";"ogg","opus"->"audio/ogg"
             else->"audio/aac"
         }
         var saved:Uri?=null
