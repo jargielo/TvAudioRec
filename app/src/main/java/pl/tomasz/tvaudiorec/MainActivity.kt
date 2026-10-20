@@ -41,15 +41,17 @@ class MainActivity : Activity() {
     private val importCode=543
     private var allAudio=false
     private val dark=Color.BLACK
-    private val surface=Color.rgb(11,11,12)
-    private val accent=Color.rgb(239,34,53)
-    private val textColor=Color.rgb(244,245,247)
-    private val subtle=Color.rgb(166,169,177)
+    private val surface=Color.rgb(13,12,10)
+    private val accent=Color.rgb(195,74,63)
+    private val textColor=Color.rgb(255,236,202)
+    private val subtle=Color.rgb(193,172,143)
+    private val vintageBorder=Color.rgb(177,144,101)
+    private val vintageDim=Color.rgb(35,30,25)
     private val uiScale:Float by lazy {
-        when(prefs.getString("ui_size","S")) {
-            "S"->0.76f
-            "L"->1.06f
-            else->1.0f
+        when(prefs.getString("ui_size","M")) {
+            "S"->0.84f
+            "L"->1.00f
+            else->0.92f
         }
     }
     private val uiFont:Typeface by lazy {
@@ -65,6 +67,8 @@ class MainActivity : Activity() {
     private lateinit var panel:LinearLayout
     private lateinit var status:TextView
     private var timer:TextView?=null
+    private var retroMeter:RetroVuMeter?=null
+    private val navButtons=linkedMapOf<String,Button>()
     private var waveform:WaveformView?=null
     private var clock:TextView?=null
     private var playSeek:SeekBar?=null
@@ -91,6 +95,7 @@ class MainActivity : Activity() {
                 time((System.currentTimeMillis()-RecordingService.startedAt).coerceAtLeast(0))
                 else "00:00"
             if(RecordingService.isRecording) waveform?.liveLevel=RecordingService.currentLevel
+            retroMeter?.level=if(RecordingService.isRecording)RecordingService.currentLevel else 0
             val mp=player
             if(mp!=null) try {
                 if(mp.duration>0) {
@@ -131,22 +136,22 @@ class MainActivity : Activity() {
             scaleType=ImageView.ScaleType.FIT_CENTER
             contentDescription="AudioRelay Recorder"
             try {
-                assets.open("audiorelay-logo.webp").use {
+                assets.open("retro_wordmark.webp").use {
                     setImageBitmap(BitmapFactory.decodeStream(it))
                 }
             }catch (_:Exception){setImageResource(android.R.drawable.ic_btn_speak_now)}
         }
-        header.addView(logo,LinearLayout.LayoutParams(dp(137),dp(49)))
+        header.addView(logo,LinearLayout.LayoutParams(dp(216),dp(55)))
         val heading=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
             setPadding(dp(12),0,0,0)
         }
-        heading.addView(label("AudioRelay Recorder",22,textColor))
-        heading.addView(label("AMOLED • Manrope • Układ 2",10,subtle))
-        header.addView(heading,LinearLayout.LayoutParams(0,dp(50),1f))
+        heading.addView(label("REJESTRATOR DŹWIĘKU",19,textColor))
+        heading.addView(label("EDYCJA RETRO  •  v1.8  •  Manrope",10,subtle))
+        header.addView(heading,LinearLayout.LayoutParams(0,dp(57),1f))
         header.addView(btn("Aa  S / M / L") {showSizeSelector()},
             LinearLayout.LayoutParams(dp(112),dp(38)))
-        root.addView(header,LinearLayout.LayoutParams(-1,dp(53)))
+        root.addView(header,LinearLayout.LayoutParams(-1,dp(59)))
 
         val tabs=LinearLayout(this).apply {
             orientation=LinearLayout.HORIZONTAL
@@ -169,6 +174,7 @@ class MainActivity : Activity() {
                 } else showPage(target)
             }
             button.tag="nav:"+target
+            navButtons[target]=button
             tabs.addView(button,LinearLayout.LayoutParams(0,dp(41),
                 if(target=="Nagrania")1.25f else if(target=="Diagnostyka")1.12f else 1.0f).apply {
                 setMargins(dp(2),0,dp(2),0)
@@ -183,7 +189,7 @@ class MainActivity : Activity() {
         root.addView(workspace,LinearLayout.LayoutParams(-1,0,1f))
         val leftScroll=ScrollView(this).apply {
             isFillViewport=false
-            setBackgroundColor(dark)
+            background=rounded(surface,vintageBorder)
             isVerticalScrollBarEnabled=false
         }
         panel=LinearLayout(this).apply {
@@ -191,11 +197,13 @@ class MainActivity : Activity() {
             setPadding(dp(7),dp(5),dp(12),dp(4))
         }
         leftScroll.addView(panel)
-        workspace.addView(leftScroll,LinearLayout.LayoutParams(0,-1,1.03f))
+        workspace.addView(leftScroll,LinearLayout.LayoutParams(0,-1,1.03f).apply{
+            setMargins(dp(3),0,dp(5),0)
+        })
 
         val rightScroll=ScrollView(this).apply {
             isFillViewport=false
-            setBackgroundColor(dark)
+            background=rounded(surface,vintageBorder)
             isVerticalScrollBarEnabled=false
         }
         rightPanel=LinearLayout(this).apply {
@@ -203,7 +211,9 @@ class MainActivity : Activity() {
             setPadding(dp(9),dp(5),dp(7),dp(4))
         }
         rightScroll.addView(rightPanel)
-        workspace.addView(rightScroll,LinearLayout.LayoutParams(0,-1,0.97f))
+        workspace.addView(rightScroll,LinearLayout.LayoutParams(0,-1,0.97f).apply{
+            setMargins(dp(5),0,dp(3),0)
+        })
 
         status=label("Gotowy do nagrywania",11,subtle)
         root.addView(status,LinearLayout.LayoutParams(-1,dp(20)))
@@ -239,21 +249,26 @@ class MainActivity : Activity() {
         ellipsize=android.text.TextUtils.TruncateAt.END
         setTextColor(textColor)
         setPadding(dp(6),dp(3),dp(6),dp(3))
-        background=rounded(surface)
+        background=rounded(surface,vintageBorder)
         setOnFocusChangeListener { view,hasFocus ->
-            view.background=rounded(if(hasFocus)Color.rgb(62,7,16) else surface,
-                if(hasFocus)accent else Color.rgb(40,40,43))
+            val nav=(view.tag as? String)?.removePrefix("nav:")
+            val active=nav!=null && nav==page
+            view.background=rounded(
+                if(hasFocus)Color.rgb(115,40,31)
+                else if(active)Color.rgb(67,27,22)
+                else surface,
+                if(hasFocus || active)accent else vintageBorder)
             (view as Button).setTextColor(if(hasFocus)Color.WHITE else textColor)
         }
         setOnClickListener {click()}
     }
-    private fun rounded(color:Int,stroke:Int=Color.rgb(40,40,43)):GradientDrawable=
+    private fun rounded(color:Int,stroke:Int=vintageBorder):GradientDrawable=
         GradientDrawable().apply {
-            setColor(color);cornerRadius=dp(6).toFloat()
+            setColor(color);cornerRadius=dp(9).toFloat()
             setStroke(dp(1),stroke)
         }
     private fun line(title:String,sub:String?=null) {
-        panel.addView(label(title,24,textColor))
+        panel.addView(label(title,23,textColor).apply{typeface=Typeface.create(uiFont,Typeface.BOLD)})
         if(sub!=null)panel.addView(label(sub,12,subtle))
         panel.addView(space(5))
     }
@@ -265,7 +280,7 @@ class MainActivity : Activity() {
             val b=btn((if(key==chosen)"✓  " else "")+display) {onChange(key)}
             b.isEnabled=enabled(key)
             if(!b.isEnabled)b.alpha=0.35f
-            b.setBackgroundColor(if(key==chosen)Color.rgb(58,79,91) else surface)
+            b.background=rounded(if(key==chosen)Color.rgb(83,32,25) else surface, vintageBorder)
             row.addView(b,LinearLayout.LayoutParams(0,dp(63),1f).apply {
                 setMargins(dp(3),dp(3),dp(3),dp(3))
             })
@@ -280,7 +295,12 @@ class MainActivity : Activity() {
             player?.pause()
         page=target
         panel.removeAllViews()
-        timer=null;waveform=null;clock=null;playSeek=null;playButton=null
+        timer=null;retroMeter=null;waveform=null;clock=null;playSeek=null;playButton=null
+        for((target,button) in navButtons){
+            val active=target==page
+            button.background=rounded(if(active)Color.rgb(83,32,25) else surface,
+                if(active)accent else vintageBorder)
+        }
         when(target) {
             "Nagrywaj"->recordPage()
             "Nagrania"->filesPage(false,false)
@@ -866,10 +886,11 @@ class MainActivity : Activity() {
             .setNegativeButton("ANULUJ",null).show()
     }
     private fun showSizeSelector() {
-        val choices=arrayOf("S — kompaktowa","M — standardowa","L — powiększona")
+        val choices=arrayOf("S — 84% (większa niż poprzednia S)",
+            "M — 92% (polecana)", "L — 100% (mniejsza niż poprzednia L)")
         val values=arrayOf("S","M","L")
         val current=values.indexOf(prefs.getString("ui_size","M")).coerceAtLeast(0)
-        AlertDialog.Builder(this).setTitle("Wielkość interfejsu — Manrope")
+        AlertDialog.Builder(this).setTitle("Wielkość menu Retro — Manrope")
             .setSingleChoiceItems(choices,current) {dialog,index->
                 prefs.edit().putString("ui_size",values[index]).commit()
                 dialog.dismiss()
