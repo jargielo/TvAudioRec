@@ -329,6 +329,18 @@ class MainActivity : Activity() {
             else Manifest.permission.READ_EXTERNAL_STORAGE
         return checkSelfPermission(permission)==PackageManager.PERMISSION_GRANTED
     }
+    override fun onRequestPermissionsResult(
+        requestCode:Int,permissions:Array<out String>,grantResults:IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults)
+        if(requestCode==733){
+            status.text=if(hasAudioPermission())
+                "Przyznano dostęp do starszych nagrań. Lista została odświeżona."
+                else "Brak dostępu do cudzych nagrań; własne pliki nadal są widoczne."
+            if(page in listOf("Nagrania","Ulubione","Kosz"))
+                showPage(page,false)
+        }
+    }
     private fun requestAudioPermission() {
         val permission=if(Build.VERSION.SDK_INT>=33)"android.permission.READ_MEDIA_AUDIO"
             else Manifest.permission.READ_EXTERNAL_STORAGE
@@ -430,6 +442,15 @@ class MainActivity : Activity() {
             contentResolver.update(output,ContentValues().apply {
                 put(MediaStore.MediaColumns.IS_PENDING,0)
             },null,null)
+            var importedSize=0L
+            try {
+                contentResolver.query(output,arrayOf(MediaStore.MediaColumns.SIZE),
+                    null,null,null)?.use { c->
+                    if(c.moveToFirst())importedSize=c.getLong(0)
+                }
+            }catch (_:Exception){}
+            RecordingIndex.save(this,output,clean,importedSize,
+                System.currentTimeMillis()/1000L)
             allAudio=false
             showPage("Nagrania")
             status.text="Zaimportowano: "+clean
@@ -454,6 +475,10 @@ class MainActivity : Activity() {
         val heading=if(trash)"KOSZ" else if(onlyFavorite)"ULUBIONE NAGRANIA" else "MOJE NAGRANIA"
         line(heading,"Biblioteka nagrań: od najnowszych lub najstarszych")
         if(!trash){
+            if(!hasAudioPermission() && !prefs.getBoolean("asked_audio_permission",false)){
+                prefs.edit().putBoolean("asked_audio_permission",true).apply()
+                panel.post {requestAudioPermission()}
+            }
             panel.addView(btn(if(allAudio)"✓  WSZYSTKIE AUDIO → POKAŻ TYLKO NAGRANIA"
                 else "♫  POKAŻ WSZYSTKIE AUDIO NA TELEWIZORZE") {
                 allAudio=!allAudio;showPage(page)
@@ -528,7 +553,13 @@ class MainActivity : Activity() {
                     .setMessage("Usuniętego pliku nie będzie można odzyskać.")
                     .setPositiveButton("USUŃ") {_,_->
                         try {
-                            contentResolver.delete(entry.uri,null,null)
+                            if(entry.uri.scheme=="file") {
+                                val path=entry.uri.path ?: error("Brak ścieżki pliku")
+                                check(File(path).delete()) {"Nie udało się usunąć nagrania"}
+                            }else check(contentResolver.delete(entry.uri,null,null)>0) {
+                                "Nie udało się usunąć nagrania"
+                            }
+                            RecordingIndex.delete(this,entry.uri)
                             prefs.edit().remove("trash."+entry.name)
                                 .remove("wave."+entry.name)
                                 .remove("favorite."+entry.name).apply()
@@ -555,6 +586,8 @@ class MainActivity : Activity() {
                     val values=ContentValues().apply {put(MediaStore.MediaColumns.DISPLAY_NAME,newName)}
                     val updated=contentResolver.update(entry.uri,values,null,null)
                     if(updated>0) {
+                        RecordingIndex.delete(this,entry.uri)
+                        RecordingIndex.save(this,entry.uri,newName,entry.bytes,entry.added)
                         prefs.edit()
                             .putString("wave."+newName,prefs.getString("wave."+entry.name,""))
                             .putBoolean("favorite."+newName,favorite(entry.name))
