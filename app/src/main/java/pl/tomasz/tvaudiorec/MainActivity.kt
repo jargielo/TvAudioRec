@@ -494,6 +494,252 @@ class MainActivity : Activity() {
     }
     private fun trashed(name:String)=prefs.getBoolean("trash."+name,false)
     private fun favorite(name:String)=prefs.getBoolean("favorite."+name,false)
+
+    /** A compact media dashboard: D-pad navigates list, playback and settings. */
+    private fun dashboardPage() {
+        val container=panel
+        val grid=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
+        container.addView(grid,LinearLayout.LayoutParams(-1,
+            (resources.displayMetrics.heightPixels-dp(38)).coerceAtLeast(dp(300))))
+        val leftScroll=ScrollView(this).apply {isFillViewport=true}
+        val left=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(2),0,dp(7),0)
+        }
+        leftScroll.addView(left)
+        grid.addView(leftScroll,LinearLayout.LayoutParams(0,-1,1.4f))
+        val separator=View(this).apply {setBackgroundColor(Color.rgb(37,37,39))}
+        grid.addView(separator,LinearLayout.LayoutParams(dp(1),-1))
+        val rightScroll=ScrollView(this).apply {isFillViewport=true}
+        val right=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(7),0,0,0)
+        }
+        rightScroll.addView(right)
+        grid.addView(rightScroll,LinearLayout.LayoutParams(0,-1,1.05f))
+        rightPreview=right
+
+        val head=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
+        head.addView(label("MOJE NAGRANIA",23,textColor),
+            LinearLayout.LayoutParams(0,dp(50),1f))
+        head.addView(btn("↻") {showPage("Nagrania",false)},
+            LinearLayout.LayoutParams(dp(48),dp(45)))
+        head.addView(btn("Aa") {sizeDialog()},
+            LinearLayout.LayoutParams(dp(54),dp(45)))
+        left.addView(head)
+
+        val filterRow=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
+        filterRow.addView(btn(if(allAudio)"Tylko nagrania" else "Wszystkie audio") {
+            allAudio=!allAudio;showPage("Nagrania",false)
+        },LinearLayout.LayoutParams(0,dp(41),1f))
+        filterRow.addView(btn("ZAZNACZ / USUŃ WIELE") {multiDeletePage()},
+            LinearLayout.LayoutParams(0,dp(41),1.35f))
+        left.addView(filterRow)
+
+        val recordings=getEntries().filter {!trashed(it.name)}
+        left.addView(label("Biblioteka: "+recordings.size+" plików",13,subtle))
+        if(recordings.isEmpty()) {
+            left.addView(label("Nie znaleziono nagrań.",18,subtle))
+            left.addView(btn("TEST ZAPISU") {
+                try {
+                    status.text=RecordingLibrary.testFile(this)
+                    showPage("Nagrania",false)
+                }catch(e:Exception){status.text="Test nieudany: "+e.message}
+            })
+            left.addView(btn("Diagnostyka") {showPage("Diagnostyka")})
+        }
+        val list=if(prefs.getBoolean("newest",true))recordings else recordings.reversed()
+        for(entry in list.take(250)) {
+            val row=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
+            val display=entry.name.take(55)
+            val main=btn(display+"  •  "+size(entry.bytes)) {
+                showDashboardPreview(entry)
+            }
+            if(entry.uri==selectedEntry?.uri)main.background=rounded(Color.rgb(48,6,11),true)
+            row.addView(main,LinearLayout.LayoutParams(0,dp(49),1f))
+            row.addView(btn("▶") {
+                showDashboardPreview(entry)
+                togglePlay(entry)
+            },LinearLayout.LayoutParams(dp(48),dp(49)))
+            row.addView(btn("⋮") {showFileActions(entry)},
+                LinearLayout.LayoutParams(dp(45),dp(49)))
+            left.addView(row)
+        }
+        left.addView(btn("↕  Sortowanie: "+if(prefs.getBoolean("newest",true))
+            "najnowsze" else "najstarsze") {
+            prefs.edit().putBoolean("newest",!prefs.getBoolean("newest",true)).apply()
+            showPage("Nagrania",false)
+        })
+        left.addView(btn("＋  Importuj plik") {pickImport()})
+        left.addView(btn("⌕  Diagnostyka") {showPage("Diagnostyka")})
+        val chosen=recordings.firstOrNull {it.uri==selectedEntry?.uri}
+            ?:recordings.firstOrNull()
+        showDashboardPreview(chosen)
+    }
+
+    private fun quickSelect(
+        parent:LinearLayout, title:String, value:String,
+        values:List<Pair<String,String>>,selected:String,
+        onChange:(String)->Unit
+    ) {
+        val row=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
+        row.addView(label(title,13,subtle),LinearLayout.LayoutParams(0,dp(40),1f))
+        row.addView(btn(value+" ▾") {
+            AlertDialog.Builder(this).setTitle(title)
+                .setSingleChoiceItems(values.map {it.first}.toTypedArray(),
+                    values.indexOfFirst{it.second==selected}.coerceAtLeast(0)) {
+                    dialog,index->
+                    val chosen=values[index].second
+                    if(chosen=="MP3" && !Mp3Native.available()) {
+                        status.text="Brak biblioteki LAME."
+                    } else onChange(chosen)
+                    dialog.dismiss()
+                    showPage("Nagrania",false)
+                }.setNegativeButton("ANULUJ",null).show()
+        },LinearLayout.LayoutParams(0,dp(40),1.35f))
+        parent.addView(row)
+    }
+
+    private fun showDashboardPreview(entry:AudioEntry?) {
+        val host=rightPreview ?:return
+        selectedEntry=entry
+        host.removeAllViews()
+        host.addView(label(entry?.name ?: "ODTWARZACZ",17,textColor))
+        host.addView(label(if(entry==null)"Wybierz plik z listy"
+            else "Audio  •  "+size(entry.bytes),12,subtle))
+        val wave=WaveformView(this)
+        wave.peaks=entry?.let {
+            prefs.getString("wave."+it.name,"").orEmpty()
+                .split(",").mapNotNull {n->n.toIntOrNull()}
+        } ?:emptyList()
+        waveform=wave
+        host.addView(wave,LinearLayout.LayoutParams(-1,dp(125)))
+        clock=label("00:00",16,accent).also {host.addView(it)}
+        val seek=SeekBar(this).apply {max=1000;progress=0;isFocusable=true}
+        playSeek=seek
+        seek.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
+            override fun onStartTrackingTouch(v:SeekBar?){}
+            override fun onStopTrackingTouch(v:SeekBar?){}
+            override fun onProgressChanged(v:SeekBar?,p:Int,fromUser:Boolean){
+                if(fromUser)try{player?.let{if(it.duration>0)
+                    it.seekTo((it.duration.toLong()*p/1000L).toInt())}}
+                catch(_:Exception){}
+            }
+        })
+        host.addView(seek,LinearLayout.LayoutParams(-1,dp(34)))
+        val controls=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
+        controls.addView(btn("−10 s"){skip(-10000)},LinearLayout.LayoutParams(0,dp(46),1f))
+        playButton=btn("▶  ODTWÓRZ") {if(entry!=null)togglePlay(entry)}.also {
+            it.isEnabled=entry!=null
+            controls.addView(it,LinearLayout.LayoutParams(0,dp(46),1.9f))
+        }
+        controls.addView(btn("+10 s"){skip(10000)},LinearLayout.LayoutParams(0,dp(46),1f))
+        host.addView(controls)
+        host.addView(btn("☆  Ulubione       ⋯  Opcje") {
+            if(entry!=null)showFileActions(entry)
+        })
+        host.addView(space(8))
+        host.addView(label("SZYBKIE USTAWIENIA",16,textColor))
+        val source=prefs.getString("source","Internal") ?: "Internal"
+        quickSelect(host,"Źródło",sourceName(),listOf(
+            "Wewnętrzny" to "Internal","Mikrofon" to "Microphone",
+            "Wewnętrzny + Mic" to "Internal + Mic",
+            "Wewnętrzny + BT" to "Internal + Bluetooth"
+        ),source){prefs.edit().putString("source",it).apply()}
+        val fmt=prefs.getString("format","M4A") ?: "M4A"
+        quickSelect(host,"Format",fmt,listOf(
+            "OPUS — najlepszy rozmiar" to "OPUS",
+            "M4A — AAC" to "M4A",
+            "MP3 — LAME" to "MP3",
+            "WAV — PCM" to "WAV",
+            "FLAC — bezstratny" to "FLAC",
+            "MP4 — AAC" to "MP4"
+        ),fmt){
+            prefs.edit().putString("format",it)
+                .apply()
+        }
+        val rate=prefs.getInt("rate",48000).toString()
+        quickSelect(host,"Częstotliwość",rate+" Hz",listOf(
+            "16 kHz" to "16000","32 kHz" to "32000",
+            "44.1 kHz" to "44100","48 kHz" to "48000"
+        ),rate){prefs.edit().putInt("rate",it.toInt()).apply()}
+        val ch=prefs.getInt("channels",2).toString()
+        quickSelect(host,"Kanały",if(ch=="2")"Stereo" else "Mono",
+            listOf("Mono" to "1","Stereo" to "2"),ch){
+            prefs.edit().putInt("channels",it.toInt()).apply()
+        }
+        val action=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
+        action.addView(btn("●  REC") {startRecording()},
+            LinearLayout.LayoutParams(0,dp(47),1f))
+        action.addView(btn("■  STOP") {stopRecording()},
+            LinearLayout.LayoutParams(0,dp(47),1f))
+        host.addView(action)
+        if(entry!=null && playing?.uri==entry.uri)
+            playButton?.text=if(player?.isPlaying==true)"Ⅱ  PAUZA" else "▶  ODTWÓRZ"
+    }
+
+    private fun multiDeletePage() {
+        val entries=getEntries().filter{!trashed(it.name)}
+        page="Wybór nagrań"
+        panel.removeAllViews()
+        val selected=linkedSetOf<String>()
+        panel.addView(label("ZAZNACZ NAGRANIA DO USUNIĘCIA",23,textColor))
+        val summary=label("Zaznaczono: 0",17,subtle)
+        panel.addView(summary)
+        val selectAll=btn("☐  Zaznacz wszystkie") {}
+        panel.addView(selectAll)
+        val selectionButtons=mutableListOf<Pair<AudioEntry,Button>>()
+        fun update() {
+            summary.text="Zaznaczono: "+selected.size+" z "+entries.size
+            for((item,button) in selectionButtons) {
+                button.text=(if(selected.contains(item.uri.toString()))"☑  " else "☐  ")+item.name
+                button.background=rounded(if(selected.contains(item.uri.toString()))
+                    Color.rgb(67,7,16) else surface,selected.contains(item.uri.toString()))
+            }
+            selectAll.text=if(selected.size==entries.size)
+                "☑  Odznacz wszystkie" else "☐  Zaznacz wszystkie"
+        }
+        selectAll.setOnClickListener {
+            if(selected.size==entries.size) selected.clear()
+            else for(e in entries)selected.add(e.uri.toString())
+            update()
+        }
+        val row=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
+        row.addView(btn("PRZENIEŚ ZAZNACZONE DO KOSZA") {
+            if(selected.isEmpty()) {
+                status.text="Najpierw zaznacz nagrania."
+            } else {
+                AlertDialog.Builder(this).setTitle("Przenieść do kosza?")
+                    .setMessage("Zaznaczono "+selected.size+" nagrań. Pliki będzie można przywrócić.")
+                    .setNegativeButton("ANULUJ",null)
+                    .setPositiveButton("PRZENIEŚ") {_,_->
+                        val edit=prefs.edit()
+                        for(e in entries)if(selected.contains(e.uri.toString()))
+                            edit.putBoolean("trash."+e.name,true)
+                        edit.commit()
+                        showPage("Nagrania",false)
+                        status.text="Przeniesiono "+selected.size+" nagrań do kosza."
+                    }.show()
+            }
+        },LinearLayout.LayoutParams(0,dp(49),1f))
+        row.addView(btn("←  ANULUJ") {showPage("Nagrania",false)},
+            LinearLayout.LayoutParams(0,dp(49),1f))
+        panel.addView(row)
+        val list=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
+        val scroll=ScrollView(this).apply {addView(list)}
+        panel.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+        for(e in entries) {
+            val button=btn(e.name+"    •    "+size(e.bytes)) {
+                val key=e.uri.toString()
+                if(!selected.add(key))selected.remove(key)
+                update()
+            }
+            list.addView(button,LinearLayout.LayoutParams(-1,dp(47)))
+            selectionButtons.add(e to button)
+        }
+        update()
+    }
+
     private fun filesPage(trash:Boolean,onlyFavorite:Boolean) {
         val heading=if(trash)"KOSZ" else if(onlyFavorite)"ULUBIONE" else "MOJE NAGRANIA"
         line(heading,"Pliki nagrane na tym telewizorze")
