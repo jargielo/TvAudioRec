@@ -60,9 +60,10 @@ class MainActivity : Activity() {
     private val ticker=object:Runnable {
         override fun run() {
             if(::status.isInitialized) {
-                status.text=if(RecordingService.isRecording) "Trwa nagrywanie..."
-                    else if(RecordingService.lastResult.isNotEmpty()) RecordingService.lastResult
-                    else "Gotowy. Pilot: strzałki / OK."
+                if(RecordingService.isRecording) status.text="Trwa nagrywanie..."
+                else if(lastRecording) status.text=RecordingService.lastResult.ifEmpty {
+                    "Nagrywanie zatrzymane."
+                }
             }
             timer?.text=if(RecordingService.isRecording)
                 time((System.currentTimeMillis()-RecordingService.startedAt).coerceAtLeast(0))
@@ -193,6 +194,10 @@ class MainActivity : Activity() {
         line("REJESTRATOR DŹWIĘKU","Źródło: "+sourceName()+"    •    "+
             prefs.getString("format","M4A")+"    •    "+rateName()+"    •    "+
             (if(prefs.getInt("channels",2)==2)"Stereo" else "Mono"))
+        panel.addView(btn("⚙  WYBIERZ ŹRÓDŁO, FORMAT, kHz, MONO / STEREO") {
+            showPage("Ustawienia")
+        })
+        panel.addView(btn("≡  MOJE NAGRANIA — LISTA I IMPORT") {showPage("Nagrania")})
         timer=label("00:00",54,accent).also { it.gravity=Gravity.CENTER;panel.addView(it) }
         waveform=WaveformView(this).also {
             it.peaks=prefs.getString("wave."+(prefs.getString("lastfile","") ?: ""),"")
