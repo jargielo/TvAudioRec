@@ -1,7 +1,7 @@
-name: Verify WAV save and library on Android 12
+name: Verify WAV and Opus recordings on Android 12
 on:
   push:
-    branches: [tv-audio-recorder-v1-5-library-repair]
+    branches: [tv-audio-recorder-v1-6-amoled-manrope]
   workflow_dispatch:
 permissions:
   contents: read
