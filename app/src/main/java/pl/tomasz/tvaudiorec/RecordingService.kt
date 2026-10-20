@@ -264,12 +264,24 @@ class RecordingService : Service() {
             playbackRecord=null;micRecord=null
             try{sink?.close()}catch (_:Exception){}
             try{desc?.close()}catch (_:Exception){}
-            if(file!=null)try{
-                if(success)contentResolver.update(file!!,ContentValues().apply {
-                    put(MediaStore.MediaColumns.IS_PENDING,0)
-                },null,null)
-                else contentResolver.delete(file!!,null,null)
-            }catch(e:Exception){lastResult="Błąd zamykania pliku: "+e.message}
+            if(file!=null)try {
+                if(success) {
+                    contentResolver.update(file!!,ContentValues().apply {
+                        put(MediaStore.MediaColumns.IS_PENDING,0)
+                    },null,null)
+                    var length=0L
+                    contentResolver.query(file!!,
+                        arrayOf(MediaStore.MediaColumns.SIZE),null,null,null)?.use { cursor ->
+                        if(cursor.moveToFirst())length=cursor.getLong(0)
+                    }
+                    val savedName=lastResult.removePrefix("Zapisano: ").trim()
+                    RecordingIndex.save(this,file!!,savedName,length,
+                        System.currentTimeMillis()/1000L)
+                } else contentResolver.delete(file!!,null,null)
+            }catch(e:Exception) {
+                lastResult="Plik zapisany, ale wystąpił błąd katalogu: "+e.message
+                android.util.Log.e("TVAudioRecorder","Recording index issue",e)
+            }
             try{projection?.stop()}catch (_:Exception){}
             projection=null
             try{wake?.release()}catch (_:Exception){}
