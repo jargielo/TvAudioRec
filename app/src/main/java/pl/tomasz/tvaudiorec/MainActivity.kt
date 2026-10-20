@@ -436,59 +436,130 @@ class MainActivity : Activity() {
     private fun trashed(name:String)=prefs.getBoolean("trash."+name,false)
     private fun favorite(name:String)=prefs.getBoolean("favorite."+name,false)
     private fun filesPage(trash:Boolean,onlyFavorite:Boolean) {
-        val heading=if(trash)"KOSZ" else if(onlyFavorite)"ULUBIONE NAGRANIA" else "MOJE NAGRANIA"
-        line(heading,"Biblioteka nagrań: od najnowszych lub najstarszych")
-        if(!trash){
-            if(!hasAudioPermission() && !prefs.getBoolean("asked_audio_permission",false)){
-                prefs.edit().putBoolean("asked_audio_permission",true).apply()
-                panel.post {requestAudioPermission()}
-            }
-            panel.addView(btn(if(allAudio)"✓  WSZYSTKIE AUDIO → POKAŻ TYLKO NAGRANIA"
-                else "♫  POKAŻ WSZYSTKIE AUDIO NA TELEWIZORZE") {
-                allAudio=!allAudio;showPage(page)
-            })
-            panel.addView(btn("＋  IMPORTUJ NAGRANIE Z INNEGO FOLDERU"){pickImport()})
-            if(!hasAudioPermission())panel.addView(btn("🔓  UDZIEL DOSTĘPU DO BIBLIOTEKI AUDIO"){
-                requestAudioPermission()
-            })
-            panel.addView(btn("↕  SORTOWANIE: "+if(prefs.getBoolean("newest",true))
-                "NAJNOWSZE PIERWSZE" else "NAJSTARSZE PIERWSZE"){
-                prefs.edit().putBoolean("newest",!prefs.getBoolean("newest",true)).apply()
-                showPage(page)
-            })
-            panel.addView(btn("↻  ODŚWIEŻ NAGRANIA"){showPage(page)})
+        val heading=if(trash)"KOSZ" else if(onlyFavorite)"ULUBIONE" else "MOJE NAGRANIA"
+        line(heading,"Pliki nagrane na tym telewizorze")
+        if(!trash && !hasAudioPermission() &&
+            !prefs.getBoolean("asked_audio_permission",false)){
+            prefs.edit().putBoolean("asked_audio_permission",true).apply()
+            panel.post {requestAudioPermission()}
         }
-        val entries=getEntries().filter{trashed(it.name)==trash && (!onlyFavorite || favorite(it.name))}
-            .let {if(prefs.getBoolean("newest",true))it else it.reversed()}
-        panel.addView(label("Znaleziono nagrań: "+entries.size,17,accent))
+
+        val entries=getEntries().filter {
+            trashed(it.name)==trash && (!onlyFavorite || favorite(it.name))
+        }.let{if(prefs.getBoolean("newest",true))it else it.reversed()}
+
+        // Results are ABOVE the management buttons, visible without scrolling.
+        panel.addView(label("Znaleziono: "+entries.size+" nagrań",23,accent))
         if(entries.isEmpty()){
-            panel.addView(label("Brak widocznych plików. Wybierz WSZYSTKIE AUDIO, "
-                +"UDZIEL DOSTĘPU lub IMPORTUJ NAGRANIE. "
-                +"Pliki prywatne innych aplikacji należy najpierw wyeksportować.",17,subtle))
-            return
-        }
-        var group=""
-        for(entry in entries){
-            val d=SimpleDateFormat("dd.MM.yyyy",Locale("pl")).format(Date(entry.added*1000))
-            if(d!=group){group=d;panel.addView(label(d,16,subtle))}
-            val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
-            val main=btn(entry.name+"    •    "+size(entry.bytes)){
-                if(trash)showTrashActions(entry) else showPlayer(entry)
+            panel.addView(label("Brak nagrań. Użyj TESTU ZAPISU poniżej, "+
+                "aby sprawdzić, czy telewizor zapisuje i wyświetla pliki.",17,subtle))
+        }else{
+            var group=""
+            for(entry in entries.take(250)){
+                val date=SimpleDateFormat("dd.MM.yyyy",Locale("pl"))
+                    .format(Date(entry.added*1000))
+                if(date!=group) {
+                    group=date
+                    panel.addView(label(date,16,subtle))
+                }
+                val row=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+                row.addView(btn(entry.name+"   •   "+size(entry.bytes)) {
+                    if(trash)showTrashActions(entry) else showPlayer(entry)
+                },LinearLayout.LayoutParams(0,dp(64),1f))
+                if(!trash){
+                    row.addView(btn(if(favorite(entry.name))"★" else "☆") {
+                        prefs.edit().putBoolean("favorite."+entry.name,
+                            !favorite(entry.name)).apply()
+                        showPage(page,false)
+                    },LinearLayout.LayoutParams(dp(62),dp(64)))
+                    row.addView(btn("⋮"){showFileActions(entry)},
+                        LinearLayout.LayoutParams(dp(62),dp(64)))
+                } else {
+                    row.addView(btn("PRZYWRÓĆ"){
+                        prefs.edit().putBoolean("trash."+entry.name,false).apply()
+                        showPage("Kosz",false)
+                    },LinearLayout.LayoutParams(dp(145),dp(64)))
+                }
+                panel.addView(row)
             }
-            row.addView(main,LinearLayout.LayoutParams(0,dp(67),1f))
-            if(!trash){
-                row.addView(btn(if(favorite(entry.name))"★" else "☆"){
-                    prefs.edit().putBoolean("favorite."+entry.name,!favorite(entry.name)).apply()
-                    showPage(page)
-                },LinearLayout.LayoutParams(dp(66),dp(67)))
-                row.addView(btn("⋮"){showFileActions(entry)},
-                    LinearLayout.LayoutParams(dp(66),dp(67)))
-            }else row.addView(btn("PRZYWRÓĆ"){
-                prefs.edit().putBoolean("trash."+entry.name,false).apply()
-                showPage("Kosz")
-            },LinearLayout.LayoutParams(dp(155),dp(67)))
-            panel.addView(row)
+            if(entries.size>250)panel.addView(label("Pokazano 250 najnowszych plików.",16,subtle))
         }
+        panel.addView(space(10))
+        panel.addView(btn("↻  ODŚWIEŻ LISTĘ NAGRAŃ"){showPage(page,false)})
+        if(!trash){
+            panel.addView(btn("✓  TEST ZAPISU I LISTY (1 SEKUNDA)") {
+                try {
+                    val result=RecordingLibrary.testFile(this)
+                    showPage("Nagrania",false)
+                    status.text=result
+                }catch(e:Exception){
+                    status.text="Test zapisu nieudany: "+e.message
+                    showPage("Diagnostyka")
+                }
+            })
+            panel.addView(btn(if(allAudio)
+                "♫  POKAŻ TYLKO NAGRANIA Z REJESTRATORA"
+                else "♫  POKAŻ CAŁĄ BIBLIOTEKĘ AUDIO TV"){
+                allAudio=!allAudio
+                if(allAudio && !hasAudioPermission())requestAudioPermission()
+                showPage(page,false)
+            })
+            panel.addView(btn("＋  IMPORTUJ NAGRANIE Z INNEJ APLIKACJI"){pickImport()})
+            panel.addView(btn("⌕  DIAGNOSTYKA PLIKÓW"){showPage("Diagnostyka")})
+            if(!hasAudioPermission())
+                panel.addView(btn("🔓  PRZYZNAJ DOSTĘP DO STARSZYCH NAGRAŃ"){
+                    requestAudioPermission()
+                })
+            panel.addView(btn("↕  ZMIEŃ SORTOWANIE"){
+                prefs.edit().putBoolean("newest",
+                    !prefs.getBoolean("newest",true)).apply()
+                showPage(page,false)
+            })
+        }
+    }
+
+    private fun diagnosticsPage() {
+        line("DIAGNOSTYKA NAGRAŃ","Sprawdzenie tego, co rzeczywiście widzi telewizor")
+        val scan=RecordingLibrary.scan(this,true)
+        val lastUri=prefs.getString("last_saved_uri","brak")
+        val lastName=prefs.getString("last_saved_name","brak")
+        val path=prefs.getString("last_output_path","brak")
+        panel.addView(label("Widziane pliki: "+scan.items.size,23,accent))
+        panel.addView(label("Własny katalog zapisów: "+scan.catalogEntries,20))
+        panel.addView(label("Identyfikator tej instalacji: "+packageName,15,subtle))
+        panel.addView(label("Dostęp do cudzych nagrań: "+
+            if(hasAudioPermission())"PRZYZNANY" else "BRAK",17))
+        panel.addView(label("Ostatnie nagranie: "+lastName,16))
+        panel.addView(label("Ostatnia ścieżka: "+path,15,subtle))
+        panel.addView(label("Ostatni adres URI: "+lastUri,14,subtle))
+        panel.addView(label("Ostatni wynik: "+
+            (prefs.getString("last_recording_result","brak") ?: "brak"),16))
+        panel.addView(label("Ostatni plik udostępniony w MediaStore: "+
+            if(prefs.getBoolean("last_saved_published",false))"TAK" else "NIE / BRAK",16))
+        panel.addView(label("---- ŹRÓDŁA PLIKÓW ----",20,accent))
+        for((key,value) in scan.counts)
+            panel.addView(label(key+": "+value,15))
+        panel.addView(label("---- SPRAWDZANE FOLDERY ----",20,accent))
+        for(p in scan.paths)
+            panel.addView(label(p,14,subtle))
+        if(scan.errors.isNotEmpty()) {
+            panel.addView(label("---- BŁĘDY ODCZYTU ----",20,accent))
+            for(e in scan.errors)panel.addView(label(e,15))
+        }
+        panel.addView(btn("✓  WYKONAJ TEST PLIKU WAV") {
+            try {
+                val result=RecordingLibrary.testFile(this)
+                showPage("Diagnostyka",false)
+                status.text=result
+            }catch(e:Exception) {
+                status.text="Test nieudany: "+e.javaClass.simpleName+" "+e.message
+            }
+        })
+        panel.addView(btn("↻  PONÓW DIAGNOSTYKĘ"){showPage("Diagnostyka",false)})
+        panel.addView(btn("≡  PRZEJDŹ DO MOICH NAGRAŃ"){showPage("Nagrania")})
+        panel.addView(label("Nagrania wykonane przez inne wersje aplikacji "+
+            "mogą znajdować się w odrębnym, prywatnym katalogu Android/data. "+
+            "Wtedy użyj funkcji importu w Moich nagraniach.",14,subtle))
     }
     private fun showFileActions(entry:AudioEntry) {
         AlertDialog.Builder(this).setTitle(entry.name)
