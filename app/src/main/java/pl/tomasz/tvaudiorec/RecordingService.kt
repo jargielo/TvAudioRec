@@ -166,7 +166,7 @@ class RecordingService : Service() {
             playbackRecord?.startRecording()
             micRecord?.startRecording()
             val extension=when(fmt) {
-                "WAV"->"wav";"FLAC"->"flac";"MP3"->"mp3";else->"m4a"
+                "WAV"->"wav";"FLAC"->"flac";"MP3"->"mp3";"MP4"->"mp4";else->"m4a"
             }
             val mime=when(fmt) {
                 "WAV"->"audio/wav";"FLAC"->"audio/flac";"MP3"->"audio/mpeg";else->"audio/mp4"
