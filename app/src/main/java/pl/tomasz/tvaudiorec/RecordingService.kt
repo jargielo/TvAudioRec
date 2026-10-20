@@ -185,7 +185,7 @@ class RecordingService : Service() {
             sink=when(fmt) {
                 "WAV"->WavSink(desc,rate,channels)
                 "FLAC"->FlacSink(desc,rate,channels)
-                "MP3"->CompressedSink(desc,rate,channels,bitrate,true)
+                "MP3"->Mp3LameSink(desc,rate,channels,bitrate)
                 else->CompressedSink(desc,rate,channels,bitrate,false)
             }
             val bytesPerFrame=channels*2
