@@ -1,7 +1,7 @@
-name: Build TV Audio Recorder v1.3.0 with MP3
+name: Build TV Audio Recorder v1.4.0 with MP3
 on:
   push:
-    branches: [tv-audio-recorder-v1-3-mp3-lame]
+    branches: [tv-audio-recorder-v1-4-navigation-library]
   workflow_dispatch:
 permissions:
   contents: read
@@ -46,6 +46,6 @@ jobs:
       - name: Upload new installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: TV-Audio-Recorder-v1.3.0-LAME-MP3-APK
+          name: TV-Audio-Recorder-v1.4.0-LAME-MP3-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
