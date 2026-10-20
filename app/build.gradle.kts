@@ -6,11 +6,11 @@ android {
     namespace = "pl.tomasz.tvaudiorec"
     compileSdk = 34
     defaultConfig {
-        applicationId = "pl.n2s.tvaudiorecorder.v14"
+        applicationId = "pl.n2s.tvaudiorecorder.v15"
         minSdk = 29
         targetSdk = 32
-        versionCode = 14
-        versionName = "1.4.0"
+        versionCode = 15
+        versionName = "1.5.0"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
