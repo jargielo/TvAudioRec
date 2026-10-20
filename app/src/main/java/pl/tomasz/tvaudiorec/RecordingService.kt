@@ -140,10 +140,12 @@ class RecordingService : Service() {
         var wake:PowerManager.WakeLock?=null
         var success=false
         try {
-            val rate=settings.getInt("rate",48000)
-            val channels=settings.getInt("channels",2)
             val fmt=settings.getString("format","M4A") ?: "M4A"
-            val bitrate=settings.getInt("bitrate",192000)
+            // Opus operates at 48 kHz (resampling would add needless complexity).
+            val rate=if(fmt=="OPUS") 48000 else settings.getInt("rate",48000)
+            val channels=settings.getInt("channels",2)
+            val bitrate=if(fmt=="OPUS")settings.getInt("opus_bitrate",96000)
+                else settings.getInt("bitrate",192000)
             val needSystem=source!="Microphone"
             val needMic=source!="Internal"
             wake=(getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(
@@ -166,10 +168,10 @@ class RecordingService : Service() {
             playbackRecord?.startRecording()
             micRecord?.startRecording()
             val extension=when(fmt) {
-                "WAV"->"wav";"FLAC"->"flac";"MP3"->"mp3";"MP4"->"mp4";else->"m4a"
+                "WAV"->"wav";"FLAC"->"flac";"MP3"->"mp3";"MP4"->"mp4";"OPUS"->"opus";else->"m4a"
             }
             val mime=when(fmt) {
-                "WAV"->"audio/wav";"FLAC"->"audio/flac";"MP3"->"audio/mpeg";else->"audio/mp4"
+                "WAV"->"audio/wav";"FLAC"->"audio/flac";"MP3"->"audio/mpeg";"OPUS"->"audio/ogg";else->"audio/mp4"
             }
             val name="TV_Audio_"+SimpleDateFormat("yyyy-MM-dd_HH-mm-ss",Locale.ROOT)
                 .format(Date())+"."+extension
@@ -179,6 +181,7 @@ class RecordingService : Service() {
                 "WAV"->WavSink(desc,rate,channels)
                 "FLAC"->FlacSink(desc,rate,channels)
                 "MP3"->Mp3LameSink(desc,rate,channels,bitrate)
+                "OPUS"->OggOpusSink(desc,channels,bitrate)
                 else->CompressedSink(desc,rate,channels,bitrate,false)
             }
             val bytesPerFrame=channels*2
