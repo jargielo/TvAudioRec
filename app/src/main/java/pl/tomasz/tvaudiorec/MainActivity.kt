@@ -104,7 +104,7 @@ class MainActivity : Activity() {
             val changed=prefs.getLong("library_revision",0L)
             if(changed!=lastLibraryRevision){
                 lastLibraryRevision=changed
-                if(page in listOf("Nagrania","Ulubione","Kosz","Diagnostyka"))
+                if(page in listOf("Nagrania","Ulubione","Kosz","Diagnostyka","Nagrywaj","Odtwarzacz"))
                     showPage(page,false)
             }
             lastRecording=RecordingService.isRecording
@@ -951,63 +951,116 @@ class MainActivity : Activity() {
     private fun renderRight(entry:AudioEntry?) {
         if(!::rightPanel.isInitialized)return
         rightPanel.removeAllViews()
-        rightPanel.addView(label("ODTWARZACZ",17,textColor))
-        if(entry==null){
-            rightPanel.addView(label("Wybierz nagranie z listy.",14,subtle))
-            val blank=WaveformView(this).apply {progress=0f}
-            rightPanel.addView(blank,LinearLayout.LayoutParams(-1,dp(145)))
-        } else {
-            if(playing?.uri!=null && playing?.uri!=entry.uri) {
-                player?.release();player=null;playing=null
-            }
-            selectedEntry=entry
-            rightPanel.addView(label(entry.name,16,textColor))
-            rightPanel.addView(label(size(entry.bytes)+"   •   "+
-                entry.name.substringAfterLast(".","").uppercase(),11,subtle))
-            waveform=WaveformView(this).apply {
-                peaks=prefs.getString("wave."+entry.name,"").orEmpty()
-                    .split(",").mapNotNull{it.toIntOrNull()}
-            }
-            rightPanel.addView(waveform,LinearLayout.LayoutParams(-1,dp(118)))
-            val track=LinearLayout(this).apply{
+        val dashboard=page=="Nagrywaj" || page=="Odtwarzacz"
+        val eligible=if(dashboard)getEntries().filter{!trashed(it.name)} else emptyList()
+        var item=entry
+        if(item==null && eligible.isNotEmpty()){
+            val first=eligible.first()
+            selectedEntry=first
+            item=first
+        }
+
+        if(dashboard){
+            val heading=LinearLayout(this).apply{
                 orientation=LinearLayout.HORIZONTAL
                 gravity=Gravity.CENTER_VERTICAL
             }
-            clock=label("00:00",12,subtle)
-            track.addView(clock,LinearLayout.LayoutParams(dp(43),dp(25)))
+            heading.addView(label("MOJE NAGRANIA",19,textColor),
+                LinearLayout.LayoutParams(0,dp(32),1f))
+            heading.addView(btn(eligible.size.toString()+" PLIKÓW  ›"){
+                showPage("Nagrania")
+            },LinearLayout.LayoutParams(dp(118),dp(32)))
+            rightPanel.addView(heading)
+            if(eligible.isEmpty()){
+                rightPanel.addView(label("Brak nagrań — rozpocznij pierwsze nagranie.",12,subtle),
+                    LinearLayout.LayoutParams(-1,dp(43)))
+            } else {
+                for(record in eligible.take(5)){
+                    val row=LinearLayout(this).apply{
+                        orientation=LinearLayout.HORIZONTAL
+                        gravity=Gravity.CENTER_VERTICAL
+                    }
+                    val current=selectedEntry?.uri==record.uri
+                    val short=if(record.name.length>34)record.name.take(31)+"…"
+                        else record.name
+                    val pick=btn("♫  "+short){
+                        selectedEntry=record
+                        renderRight(record)
+                    }
+                    if(current)pick.background=rounded(Color.rgb(65,5,14),accent)
+                    row.addView(pick,LinearLayout.LayoutParams(0,dp(37),1f))
+                    row.addView(btn("▶"){togglePlay(record)},
+                        LinearLayout.LayoutParams(dp(43),dp(37)))
+                    rightPanel.addView(row)
+                }
+            }
+            rightPanel.addView(space(8))
+        }
+
+        rightPanel.addView(label("ODTWARZACZ",18,textColor),
+            LinearLayout.LayoutParams(-1,dp(29)))
+        if(item==null){
+            rightPanel.addView(label("Wybierz nagranie z listy.",12,subtle))
+            val graphic=WaveformView(this).apply{progress=0f}
+            rightPanel.addView(graphic,LinearLayout.LayoutParams(-1,dp(63)))
+        } else {
+            val selected=item
+            selectedEntry=selected
+            if(playing?.uri!=null && playing?.uri!=selected.uri){
+                player?.release();player=null;playing=null
+            }
+            rightPanel.addView(label(selected.name,13,textColor).apply{
+                maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END
+            },LinearLayout.LayoutParams(-1,dp(25)))
+
+            waveform=WaveformView(this).apply{
+                peaks=prefs.getString("wave."+selected.name,"").orEmpty()
+                    .split(",").mapNotNull{it.toIntOrNull()}
+            }
+            rightPanel.addView(waveform,LinearLayout.LayoutParams(-1,dp(66)))
+            val seekRow=LinearLayout(this).apply{
+                orientation=LinearLayout.HORIZONTAL
+                gravity=Gravity.CENTER_VERTICAL
+            }
+            clock=label("00:00",11,subtle)
+            seekRow.addView(clock,LinearLayout.LayoutParams(dp(47),dp(29)))
             playSeek=SeekBar(this).apply{max=1000}
-            track.addView(playSeek,LinearLayout.LayoutParams(0,dp(30),1f))
-            track.addView(label("—",12,subtle),LinearLayout.LayoutParams(dp(24),dp(25)))
-            rightPanel.addView(track)
+            seekRow.addView(playSeek,LinearLayout.LayoutParams(0,dp(29),1f))
+            seekRow.addView(label("♫",12,subtle),LinearLayout.LayoutParams(dp(22),dp(29)))
+            rightPanel.addView(seekRow)
             playSeek?.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seek:SeekBar?,value:Int,fromUser:Boolean){
-                    if(fromUser)try {
-                        player?.let{ if(it.duration>0)
-                            it.seekTo((it.duration.toLong()*value/1000).toInt())
-                        }
-                    }catch(_:Exception){}
+                    if(fromUser)try{
+                        player?.let{if(it.duration>0)
+                            it.seekTo((it.duration.toLong()*value/1000).toInt())}
+                    }catch (_:Exception){}
                 }
                 override fun onStartTrackingTouch(seek:SeekBar?){}
                 override fun onStopTrackingTouch(seek:SeekBar?){}
             })
-            val transport=LinearLayout(this).apply{
+            val controls=LinearLayout(this).apply{
                 orientation=LinearLayout.HORIZONTAL
                 gravity=Gravity.CENTER_VERTICAL
             }
-            transport.addView(btn("−10 s"){skip(-10000)},
-                LinearLayout.LayoutParams(0,dp(45),1f))
-            playButton=btn(if(player?.isPlaying==true)"❚❚  PAUZA" else "▶  PLAY"){
-                togglePlay(entry)
+            controls.addView(btn("◀◀  10 s"){skip(-10000)},
+                LinearLayout.LayoutParams(0,dp(37),1f))
+            playButton=btn(if(player?.isPlaying==true)"❚❚  PAUZA" else "▶  ODTWÓRZ"){
+                togglePlay(selected)
             }
-            transport.addView(playButton,LinearLayout.LayoutParams(0,dp(45),1.5f))
-            transport.addView(btn("+10 s"){skip(10000)},
-                LinearLayout.LayoutParams(0,dp(45),1f))
-            rightPanel.addView(transport)
-            rightPanel.addView(btn("☆  ULUBIONE      ⋮  WIĘCEJ") {
-                showFileActions(entry)
-            },LinearLayout.LayoutParams(-1,dp(36)))
+            controls.addView(playButton,LinearLayout.LayoutParams(0,dp(37),1.4f))
+            controls.addView(btn("10 s  ▶▶"){skip(10000)},
+                LinearLayout.LayoutParams(0,dp(37),1f))
+            rightPanel.addView(controls)
+            if(!dashboard)rightPanel.addView(btn("☆  ULUBIONE / WIĘCEJ") {
+                showFileActions(selected)
+            },LinearLayout.LayoutParams(-1,dp(35)))
         }
-        quickSettings()
+        if(!dashboard) {
+            rightPanel.addView(space(8))
+            rightPanel.addView(btn("⚙  Ustawienia nagrywania") {
+                showPage("Ustawienia")
+            },LinearLayout.LayoutParams(-1,dp(37)))
+        }
     }
 
     private fun showPlayer(entry:AudioEntry,saveHistory:Boolean=true){
