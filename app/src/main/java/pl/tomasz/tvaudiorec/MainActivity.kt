@@ -678,12 +678,14 @@ class MainActivity : Activity() {
             playButton?.text=if(player?.isPlaying==true)"Ⅱ  PAUZA" else "▶  ODTWÓRZ"
     }
 
-    private fun multiDeletePage() {
-        val entries=getEntries().filter{!trashed(it.name)}
+    private fun multiDeletePage(trash:Boolean=false) {
+        val entries=getEntries().filter{trashed(it.name)==trash}
+        if(page!="Wybór nagrań")history.addLast(page)
         page="Wybór nagrań"
         panel.removeAllViews()
         val selected=linkedSetOf<String>()
-        panel.addView(label("ZAZNACZ NAGRANIA DO USUNIĘCIA",23,textColor))
+        panel.addView(label(if(trash)"ZAZNACZ DO TRWAŁEGO USUNIĘCIA"
+            else "ZAZNACZ NAGRANIA DO KOSZA",23,textColor))
         val summary=label("Zaznaczono: 0",17,subtle)
         panel.addView(summary)
         val selectAll=btn("☐  Zaznacz wszystkie") {}
@@ -705,24 +707,46 @@ class MainActivity : Activity() {
             update()
         }
         val row=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
-        row.addView(btn("PRZENIEŚ ZAZNACZONE DO KOSZA") {
+        row.addView(btn(if(trash)"USUŃ TRWALE ZAZNACZONE" else "PRZENIEŚ ZAZNACZONE DO KOSZA") {
             if(selected.isEmpty()) {
                 status.text="Najpierw zaznacz nagrania."
             } else {
-                AlertDialog.Builder(this).setTitle("Przenieść do kosza?")
-                    .setMessage("Zaznaczono "+selected.size+" nagrań. Pliki będzie można przywrócić.")
+                AlertDialog.Builder(this).setTitle(if(trash)"Usunąć trwale?" else "Przenieść do kosza?")
+                    .setMessage(if(trash)
+                        "Usuniesz bezpowrotnie "+selected.size+" plików. Nie będzie można ich odzyskać."
+                        else "Przenieść "+selected.size+" nagrań? Będzie można je przywrócić.")
                     .setNegativeButton("ANULUJ",null)
-                    .setPositiveButton("PRZENIEŚ") {_,_->
+                    .setPositiveButton(if(trash)"USUŃ TRWALE" else "PRZENIEŚ") {_,_->
                         val edit=prefs.edit()
-                        for(e in entries)if(selected.contains(e.uri.toString()))
-                            edit.putBoolean("trash."+e.name,true)
+                        var done=0
+                        var failed=0
+                        for(e in entries)if(selected.contains(e.uri.toString())) {
+                            if(trash){
+                                try {
+                                    val removed=if(e.uri.scheme=="file")
+                                        File(e.uri.path!!).delete()
+                                    else contentResolver.delete(e.uri,null,null)>0
+                                    if(removed) {
+                                        RecordingIndex.delete(this,e.uri)
+                                        edit.remove("trash."+e.name)
+                                            .remove("favorite."+e.name)
+                                            .remove("wave."+e.name)
+                                        done++
+                                    } else failed++
+                                }catch(_:Exception){failed++}
+                            }else{
+                                edit.putBoolean("trash."+e.name,true)
+                                done++
+                            }
+                        }
                         edit.commit()
-                        showPage("Nagrania",false)
-                        status.text="Przeniesiono "+selected.size+" nagrań do kosza."
+                        showPage(if(trash)"Kosz" else "Nagrania",false)
+                        status.text="Zmieniono "+done+" plików."+
+                            if(failed>0)" Nie udało się usunąć: "+failed else ""
                     }.show()
             }
         },LinearLayout.LayoutParams(0,dp(49),1f))
-        row.addView(btn("←  ANULUJ") {showPage("Nagrania",false)},
+        row.addView(btn("←  ANULUJ") {showPage(if(trash)"Kosz" else "Nagrania",false)},
             LinearLayout.LayoutParams(0,dp(49),1f))
         panel.addView(row)
         val list=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
@@ -743,6 +767,9 @@ class MainActivity : Activity() {
     private fun filesPage(trash:Boolean,onlyFavorite:Boolean) {
         val heading=if(trash)"KOSZ" else if(onlyFavorite)"ULUBIONE" else "MOJE NAGRANIA"
         line(heading,"Pliki nagrane na tym telewizorze")
+        if(trash)panel.addView(btn("☑  ZAZNACZ / USUŃ WIELE NAGRAŃ TRWALE") {
+            multiDeletePage(true)
+        })
         if(!trash && !hasAudioPermission() &&
             !prefs.getBoolean("asked_audio_permission",false)){
             prefs.edit().putBoolean("asked_audio_permission",true).apply()
@@ -1042,12 +1069,14 @@ class MainActivity : Activity() {
         }
         val format=prefs.getString("format","M4A") ?: "M4A"
         selectionRow("FORMAT NAGRANIA",when(format) {
+            "OPUS"->"Opus / Ogg — wysoka jakość, mały rozmiar"
             "MP4"->"MP4 — tylko audio AAC"
             "MP3"->"MP3 — kompresja stratna"
             "WAV"->"WAV — bez kompresji"
             "FLAC"->"FLAC — bezstratny"
             else->"M4A — AAC"
         },listOf(
+            "Opus / Ogg — oszczędny (zalecany)" to "OPUS",
             "M4A — AAC" to "M4A",
             "MP4 — AAC (bez obrazu)" to "MP4",
             "MP3 — LAME (działa bez kodeka TV)" to "MP3",
@@ -1066,6 +1095,13 @@ class MainActivity : Activity() {
         selectionRow("KANAŁY",if(channels=="2")"Stereo" else "Mono",
             listOf("Mono" to "1","Stereo" to "2"),channels) {
             prefs.edit().putInt("channels",it.toInt()).apply()
+        }
+        val opusRate=prefs.getInt("opus_bitrate",96000).toString()
+        selectionRow("JAKOŚĆ OPUS (48 kHz)",(opusRate.toInt()/1000).toString()+" kb/s",
+            listOf("48 kb/s — mowa" to "48000","64 kb/s — standard" to "64000",
+                "96 kb/s — muzyka" to "96000","128 kb/s — lepsza muzyka" to "128000"),
+            opusRate) {
+            prefs.edit().putInt("opus_bitrate",it.toInt()).apply()
         }
         val bitrate=prefs.getInt("bitrate",192000).toString()
         selectionRow("JAKOŚĆ AAC / MP3",(bitrate.toInt()/1000).toString()+" kb/s",
