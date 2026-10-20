@@ -235,6 +235,8 @@ class MainActivity : Activity() {
         typeface=uiFont
         isAllCaps=false
         isFocusable=true
+        isSingleLine=true
+        ellipsize=android.text.TextUtils.TruncateAt.END
         setTextColor(textColor)
         setPadding(dp(6),dp(3),dp(6),dp(3))
         background=rounded(surface)
@@ -341,36 +343,102 @@ class MainActivity : Activity() {
         dialog.show()
     }
 
-    private fun recordPage() {
-        line("REJESTRATOR DŹWIĘKU","Źródło: "+sourceName()+"    •    "+
-            prefs.getString("format","M4A")+"    •    "+rateName()+"    •    "+
-            (if(prefs.getInt("channels",2)==2)"Stereo" else "Mono"))
-        panel.addView(btn("⚙  WYBIERZ ŹRÓDŁO, FORMAT, kHz, MONO / STEREO") {
-            showPage("Ustawienia")
-        })
-        panel.addView(btn("≡  MOJE NAGRANIA — LISTA I IMPORT") {showPage("Nagrania")})
-        timer=label("00:00",54,accent).also { it.gravity=Gravity.CENTER;panel.addView(it) }
-        waveform=WaveformView(this).also {
-            it.peaks=prefs.getString("wave."+(prefs.getString("lastfile","") ?: ""),"")
-                .orEmpty().split(",").mapNotNull {value->value.toIntOrNull()}
-            panel.addView(it,LinearLayout.LayoutParams(-1,dp(220)))
+    private fun compactChoice(
+        row:LinearLayout,title:String,value:String,selected:String,
+        options:List<Pair<String,String>>,onSelect:(String)->Unit
+    ) {
+        val block=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(3),dp(2),dp(3),dp(2))
         }
-        panel.addView(space(18))
-        val row=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
-        row.addView(btn("▶  ROZPOCZNIJ NAGRYWANIE") {startRecording()},
-            LinearLayout.LayoutParams(0,dp(64),1f))
-        row.addView(btn("■  STOP I ZAPISZ") {stopRecording()},
-            LinearLayout.LayoutParams(0,dp(64),1f))
-        panel.addView(row)
-        panel.addView(btn("⌂  WRÓĆ DO APLIKACJI TV") {
-            startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME))
-        })
-        panel.addView(label("Aby nagrywać aplikację w tle, wybierz START i zaakceptuj systemową zgodę. "
-            +"Niektóre aplikacje blokują przechwytywanie wewnętrznego audio.",16,subtle))
-        panel.addView(btn("⚙  USTAWIENIA: ŹRÓDŁO / FORMAT / kHz / MONO-STEREO") {showPage("Ustawienia")})
-        panel.addView(btn("≡  OTWÓRZ ZAPISANE NAGRANIA") {showPage("Nagrania")})
-        panel.addView(btn("⌕  SPRAWDŹ GDZIE ZAPISANO PLIKI") {showPage("Diagnostyka")})
+        block.addView(label(title,11,subtle),
+            LinearLayout.LayoutParams(-1,dp(20)))
+        block.addView(btn("▾  "+value) {
+            val idx=options.indexOfFirst{it.second==selected}.coerceAtLeast(0)
+            AlertDialog.Builder(this).setTitle(title)
+                .setSingleChoiceItems(options.map{it.first}.toTypedArray(),idx) {dialog,which->
+                    val next=options[which].second
+                    if(title=="Format" && next=="MP3" && !Mp3Native.available())
+                        status.text="MP3 niedostępny na TV"
+                    else if(title=="Format" && next=="OPUS" && !OpusNative.available())
+                        status.text="Opus niedostępny w tej instalacji"
+                    else {
+                        onSelect(next)
+                        showPage(page,false)
+                    }
+                    dialog.dismiss()
+                }.setNegativeButton("ANULUJ",null).show()
+        },LinearLayout.LayoutParams(-1,dp(35)))
+        row.addView(block,LinearLayout.LayoutParams(0,dp(61),1f))
     }
+
+    private fun recordPage() {
+        line("REJESTRATOR DŹWIĘKU","Wszystkie najważniejsze opcje na jednym ekranie")
+        val choices=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
+        val source=prefs.getString("source","Internal") ?: "Internal"
+        compactChoice(choices,"Źródło",sourceName(),source,listOf(
+            "Dźwięk wewnętrzny" to "Internal",
+            "Mikrofon TV" to "Microphone",
+            "Wewnętrzny + mikrofon" to "Internal + Mic",
+            "Wewnętrzny + Bluetooth" to "Internal + Bluetooth"
+        )) {prefs.edit().putString("source",it).commit()}
+        val fmt=prefs.getString("format","M4A") ?: "M4A"
+        compactChoice(choices,"Format",fmt,fmt,listOf(
+            "M4A — AAC" to "M4A",
+            "OPUS — mały plik" to "OPUS",
+            "MP3 — LAME" to "MP3",
+            "MP4 — tylko audio" to "MP4",
+            "FLAC — bezstratnie" to "FLAC",
+            "WAV — PCM" to "WAV"
+        )) {prefs.edit().putString("format",it).commit()}
+        val rate=prefs.getInt("rate",48000)
+        compactChoice(choices,"Częstotliwość",
+            if(fmt=="OPUS")"48 kHz" else if(rate==44100)"44,1 kHz" else (rate/1000).toString()+" kHz",
+            rate.toString(),listOf(
+                "16 kHz" to "16000","32 kHz" to "32000",
+                "44,1 kHz" to "44100","48 kHz" to "48000"
+            )) {prefs.edit().putInt("rate",it.toInt()).commit()}
+        val channels=prefs.getInt("channels",2)
+        compactChoice(choices,"Kanały",if(channels==2)"Stereo" else "Mono",
+            channels.toString(),listOf("Mono" to "1","Stereo" to "2")){
+            prefs.edit().putInt("channels",it.toInt()).commit()
+        }
+        panel.addView(choices)
+        panel.addView(space(9))
+        panel.addView(btn("⚙  Więcej ustawień i jakość Opus / MP3") {
+            showPage("Ustawienia")
+        },LinearLayout.LayoutParams(-1,dp(43)))
+        panel.addView(space(12))
+        timer=label("00:00",62,accent).also {
+            it.gravity=Gravity.CENTER
+            panel.addView(it,LinearLayout.LayoutParams(-1,dp(91)))
+        }
+        panel.addView(label(if(RecordingService.isRecording)"●  TRWA NAGRYWANIE"
+            else "GOTOWY DO NAGRYWANIA",11,subtle).apply {
+                gravity=Gravity.CENTER
+        },LinearLayout.LayoutParams(-1,dp(21)))
+        panel.addView(space(18))
+        val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+        actions.addView(btn("●  ROZPOCZNIJ NAGRYWANIE"){startRecording()},
+            LinearLayout.LayoutParams(0,dp(54),1.15f).apply {
+                setMargins(0,0,dp(6),0)
+            })
+        actions.addView(btn("■  STOP I ZAPISZ"){stopRecording()},
+            LinearLayout.LayoutParams(0,dp(54),0.9f))
+        panel.addView(actions)
+        panel.addView(space(10))
+        panel.addView(btn("⌂  Wróć do telewizji (nagrywanie w tle)") {
+            startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME))
+        },LinearLayout.LayoutParams(-1,dp(39)))
+    }
+    private fun playerOverview() {
+        line("ODTWARZACZ","Wybierz plik z listy po prawej stronie")
+        panel.addView(btn("☷  Otwórz pełną bibliotekę nagrań"){
+            showPage("Nagrania")
+        },LinearLayout.LayoutParams(-1,dp(42)))
+        panel.addView(label("Sterowanie odtwarzaniem i przebieg dźwięku są po prawej.",14,subtle))
+    }
+
     private fun sourceName():String=when(prefs.getString("source","Internal")) {
         "Microphone"->"Mikrofon";"Internal + Mic"->"Wewnętrzny + mikrofon"
         "Internal + Bluetooth"->"Wewnętrzny + Bluetooth";else->"Wewnętrzny"
