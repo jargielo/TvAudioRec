@@ -112,47 +112,74 @@ class MainActivity : Activity() {
     data class AudioEntry(val uri:Uri,val name:String,val bytes:Long,val added:Long)
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
-        window.decorView.setBackgroundColor(dark)
+        window.decorView.setBackgroundColor(Color.BLACK)
         root=LinearLayout(this).apply {
             orientation=LinearLayout.HORIZONTAL
-            setPadding(dp(20),dp(20),dp(20),dp(20))
+            setPadding(dp(10),dp(9),dp(10),dp(9))
+            setBackgroundColor(Color.BLACK)
         }
         setContentView(root)
         val side=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
-            setPadding(dp(7),dp(6),dp(17),dp(3))
+            setPadding(dp(3),dp(1),dp(10),dp(4))
+            setBackgroundColor(Color.BLACK)
         }
-        root.addView(side,LinearLayout.LayoutParams(dp(275),-1))
-        side.addView(label("TV AUDIO",30,accent))
-        side.addView(label("RECORDER  •  v1.5",17,subtle))
-        side.addView(space(26))
-        for(name in listOf("Nagrywaj","Nagrania","Ulubione","Kosz","Ustawienia","Diagnostyka")) {
-            val title=when(name){
-                "Nagrywaj"->"●  NAGRYWANIE"
-                "Nagrania"->"≡  MOJE NAGRANIA"
-                "Ulubione"->"☆  ULUBIONE"
-                "Kosz"->"▣  KOSZ"
-                "Ustawienia"->"⚙  USTAWIENIA"
-                else->"⌕  DIAGNOSTYKA PLIKÓW"
+        val displayWidth=resources.displayMetrics.widthPixels/
+            resources.displayMetrics.density
+        val navWidth=if(displayWidth<830f)145 else 160
+        root.addView(side,LinearLayout.LayoutParams(dp(navWidth),-1))
+        val logo=ImageView(this).apply {
+            scaleType=ImageView.ScaleType.FIT_CENTER
+            try {
+                assets.open("audiorelay-logo.webp").use {
+                    setImageBitmap(BitmapFactory.decodeStream(it))
+                }
+            }catch (_:Exception){
+                setImageResource(android.R.drawable.ic_btn_speak_now)
             }
-            side.addView(btn(title) {showPage(name)})
         }
-        side.addView(space(12))
-        side.addView(label("Nagrywaj dźwięk z aplikacji bez nagrywania obrazu.",15,subtle))
+        side.addView(logo,LinearLayout.LayoutParams(-1,dp(72)))
+        side.addView(label("AudioRelay Recorder • 1.6",10,subtle))
+        side.addView(space(9))
+        val menu=listOf(
+            "Nagrania" to "♫  Moje nagrania",
+            "Nagrywaj" to "●  Nagrywanie",
+            "Ustawienia" to "⚙  Ustawienia",
+            "Ulubione" to "☆  Ulubione",
+            "Kosz" to "□  Kosz",
+            "Diagnostyka" to "⌕  Diagnostyka"
+        )
+        for((target,title) in menu) {
+            side.addView(btn(title){showPage(target)},
+                LinearLayout.LayoutParams(-1,dp(46)))
+        }
         side.addView(View(this),LinearLayout.LayoutParams(1,0,1f))
-        status=label("Gotowy.",15,subtle)
+        side.addView(btn("A−  /  A+   ROZMIAR"){showSizeSelector()},
+            LinearLayout.LayoutParams(-1,dp(38)))
+        status=label("Gotowy",11,subtle)
         side.addView(status)
-        val scroll=ScrollView(this).apply {
+        val centerScroll=ScrollView(this).apply {
             isFillViewport=true
-            setBackgroundColor(surface)
+            setBackgroundColor(Color.BLACK)
         }
         panel=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
-            setPadding(dp(25),dp(19),dp(25),dp(16))
+            setPadding(dp(7),dp(1),dp(8),dp(5))
         }
-        scroll.addView(panel)
-        root.addView(scroll,LinearLayout.LayoutParams(0,-1,1f))
-        showPage("Nagrywaj")
+        centerScroll.addView(panel)
+        root.addView(centerScroll,LinearLayout.LayoutParams(0,-1,1.23f))
+        val rightScroll=ScrollView(this).apply {
+            isFillViewport=true
+            setBackgroundColor(Color.BLACK)
+        }
+        rightPanel=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(7),dp(1),dp(4),dp(5))
+        }
+        rightScroll.addView(rightPanel)
+        root.addView(rightScroll,LinearLayout.LayoutParams(0,-1,0.98f))
+        page="Nagrania"
+        showPage("Nagrania",false)
         lastLibraryRevision=prefs.getLong("library_revision",0L)
         handler.post(ticker)
     }
@@ -227,6 +254,14 @@ class MainActivity : Activity() {
             "Ustawienia"->settingsPage()
             "Diagnostyka"->diagnosticsPage()
         }
+        if(target in listOf("Nagrania","Ulubione","Kosz") && selectedEntry==null) {
+            val items=RecordingLibrary.scan(this,false).items
+            if(items.isNotEmpty()) {
+                val first=items.first()
+                selectedEntry=AudioEntry(first.uri,first.name,first.size,first.time)
+            }
+        }
+        renderRight(selectedEntry)
     }
     private fun previousScreen() {
         if(page=="Odtwarzacz")player?.pause()
