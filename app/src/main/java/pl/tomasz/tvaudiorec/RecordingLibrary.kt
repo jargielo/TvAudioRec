@@ -20,7 +20,7 @@ object RecordingLibrary {
                     val errors:List<String>,val paths:List<String>,val indexed:Int)
     data class Output(val uri:Uri,val fd:ParcelFileDescriptor,val name:String,
                       val publicFile:Boolean,val fallback:File?)
-    private val allowed=setOf("mp3","m4a","mp4","wav","flac","aac","ogg")
+    private val allowed=setOf("mp3","m4a","mp4","wav","flac","aac","ogg","opus")
     private fun audio(name:String)=name.substringAfterLast('.',"").lowercase() in allowed
 
     fun create(context:Context,name:String,mime:String):Output {
