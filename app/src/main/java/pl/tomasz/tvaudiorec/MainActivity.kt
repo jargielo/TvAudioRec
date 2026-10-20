@@ -58,6 +58,8 @@ class MainActivity : Activity() {
     }
     private lateinit var rightPanel:LinearLayout
     private var selectedEntry:AudioEntry?=null
+    private var multiSelect=false
+    private val marked=linkedSetOf<String>()
     private val prefs by lazy { getSharedPreferences("record_settings",MODE_PRIVATE) }
     private lateinit var root:LinearLayout
     private lateinit var panel:LinearLayout
@@ -431,13 +433,13 @@ class MainActivity : Activity() {
         val clean=(sourceName ?: "Import_"+System.currentTimeMillis()+".m4a")
             .replace(Regex("[/\\\\:*?\"<>|]"),"_").take(100)
         val extension=clean.substringAfterLast(".","m4a").lowercase()
-        if(extension !in setOf("mp3","m4a","mp4","wav","flac","aac","ogg")) {
+        if(extension !in setOf("mp3","m4a","mp4","wav","flac","aac","ogg","opus")) {
             status.text="Nieobsługiwany format: "+clean
             return
         }
         val mime=when(extension) {
             "mp3"->"audio/mpeg";"m4a","mp4"->"audio/mp4"
-            "wav"->"audio/wav";"flac"->"audio/flac";"ogg"->"audio/ogg"
+            "wav"->"audio/wav";"flac"->"audio/flac";"ogg","opus"->"audio/ogg"
             else->"audio/aac"
         }
         var saved:Uri?=null
@@ -737,9 +739,19 @@ class MainActivity : Activity() {
         ),src){prefs.edit().putString("source",it).commit()}
         val format=prefs.getString("format","M4A") ?: "M4A"
         quickField(rightPanel,"Format",format,listOf(
-            "MP3" to "MP3","M4A" to "M4A","MP4 (tylko audio)" to "MP4",
-            "FLAC" to "FLAC","WAV" to "WAV"
+            "OPUS — oszczędny" to "OPUS","MP3" to "MP3","M4A" to "M4A",
+            "MP4 (tylko audio)" to "MP4","FLAC" to "FLAC","WAV" to "WAV"
         ),format){prefs.edit().putString("format",it).commit()}
+        if(format=="OPUS"){
+            val quality=prefs.getInt("opus_bitrate",96000).toString()
+            quickField(rightPanel,"Opus kb/s",(quality.toInt()/1000).toString()+" kb/s",
+                listOf("48 kb/s — mniejszy plik" to "48000",
+                    "64 kb/s — bardzo oszczędny" to "64000",
+                    "96 kb/s — polecany" to "96000",
+                    "128 kb/s — wyższa jakość" to "128000"),quality){
+                prefs.edit().putInt("opus_bitrate",it.toInt()).commit()
+            }
+        }
         val rate=prefs.getInt("rate",48000).toString()
         quickField(rightPanel,"kHz",when(rate){
             "44100"->"44,1 kHz"
@@ -891,16 +903,20 @@ class MainActivity : Activity() {
             "MP3"->"MP3 — kompresja stratna"
             "WAV"->"WAV — bez kompresji"
             "FLAC"->"FLAC — bezstratny"
+            "OPUS"->"Opus — oszczędny"
             else->"M4A — AAC"
         },listOf(
             "M4A — AAC" to "M4A",
             "MP4 — AAC (bez obrazu)" to "MP4",
             "MP3 — LAME (działa bez kodeka TV)" to "MP3",
+            "Opus — Ogg, mały rozmiar, dobra jakość" to "OPUS",
             "WAV — PCM bez kompresji" to "WAV",
             "FLAC — bezstratny" to "FLAC"),format) {
             prefs.edit().putString("format",it).apply()
         }
         val rate=prefs.getInt("rate",48000).toString()
+        if(format=="OPUS")panel.addView(label(
+            "Opus nagrywa z częstotliwością 48 kHz (zgodność z kodekiem).",14,subtle))
         selectionRow("CZĘSTOTLIWOŚĆ (kHz)",rate+" Hz",
             listOf("8 kHz" to "8000","16 kHz" to "16000",
                 "22,05 kHz" to "22050","32 kHz" to "32000",
