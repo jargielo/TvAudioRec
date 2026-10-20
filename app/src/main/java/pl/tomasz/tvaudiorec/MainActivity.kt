@@ -97,7 +97,7 @@ class MainActivity : Activity() {
         }
         root.addView(side,LinearLayout.LayoutParams(dp(275),-1))
         side.addView(label("TV AUDIO",30,accent))
-        side.addView(label("RECORDER  •  v1.2",17,subtle))
+        side.addView(label("RECORDER  •  v1.3",17,subtle))
         side.addView(space(26))
         for(name in listOf("Nagrywaj","Nagrania","Ulubione","Kosz","Ustawienia")) {
             val title=when(name){
@@ -237,7 +237,7 @@ class MainActivity : Activity() {
             status.text="Zezwól na uprawnienia i wybierz START ponownie."
             return
         }
-        if(prefs.getString("format","M4A")=="MP3" && !EncoderSupport.mp3Available()) {
+        if(prefs.getString("format","M4A")=="MP3" && !Mp3Native.available()) {
             status.text="MP3: ten telewizor nie ma enkodera. Wybierz M4A, WAV lub FLAC."
             return
         }
@@ -571,11 +571,11 @@ class MainActivity : Activity() {
             AlertDialog.Builder(this).setTitle(heading)
                 .setSingleChoiceItems(choices.map{it.first}.toTypedArray(),index) { dialog,which->
                     val key=choices[which].second
-                    if(heading=="FORMAT NAGRANIA" && key=="MP3" && !EncoderSupport.mp3Available()) {
+                    if(heading=="FORMAT NAGRANIA" && key=="MP3" && !Mp3Native.available()) {
                         dialog.dismiss()
                         AlertDialog.Builder(this)
                             .setTitle("MP3 niedostępny na tym telewizorze")
-                            .setMessage("Brak systemowego enkodera MP3. Dostępne formaty: "
+                            .setMessage("Brak biblioteki LAME MP3 w aplikacji. Dostępne formaty: "
                                 +"M4A, MP4 (tylko audio), WAV i FLAC.")
                             .setPositiveButton("OK",null).show()
                     } else {
@@ -606,7 +606,7 @@ class MainActivity : Activity() {
         },listOf(
             "M4A — AAC" to "M4A",
             "MP4 — AAC (bez obrazu)" to "MP4",
-            "MP3 — wymaga enkodera telewizora" to "MP3",
+            "MP3 — LAME (działa bez kodeka TV)" to "MP3",
             "WAV — PCM bez kompresji" to "WAV",
             "FLAC — bezstratny" to "FLAC"),format) {
             prefs.edit().putString("format",it).apply()
