@@ -11,10 +11,10 @@
     <uses-feature android:name="android.software.leanback" android:required="false"/>
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
     <application
-        android:label="TV Audio Recorder 1.5"
+        android:label="AudioRelay Recorder 1.6"
         android:theme="@android:style/Theme.Material.NoActionBar"
-        android:icon="@android:drawable/ic_btn_speak_now"
-        android:banner="@android:drawable/ic_btn_speak_now"
+        android:icon="@drawable/audiorelay_logo"
+        android:banner="@drawable/audiorelay_logo"
         android:usesCleartextTraffic="false"
         android:allowBackup="false">
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape">
