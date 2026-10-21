@@ -1,5 +1,7 @@
-# AudioRelay Grabber – Android 9 Pie (1.9.2)
-This Android 9 specific build replaces unsupported Android 10 Playback Capture with Android 9 supported foreground MIC recording.
-It does not record another app's internal audio.
-Supports Huawei P20 Lite ANE-LX1, EMUI 9.1.0. M4A/AAC, list/play/delete recordings.
-Release is a debug-signed APK and must be installed as a new application; it intentionally does not overwrite the older application's incompatible package.
+# AudioRelay Grabber 1.9.3 — Android 9 Pie
+
+Full multi-page AMOLED Black UI inspired by the original 1.9.0 AudioRelay Grabber APK.
+Pages: recorder with meter, quick settings (M4A/WAV, sample rate, bit rate), My Recordings, audio player, Settings, Diagnostics.
+Recording via foreground microphone service, API 28 and Huawei P20 Lite ANE-LX1.
+File rename, playback, favorites, trash, import and sharing.
+System AudioPlaybackCapture is API 29+, therefore internal audio capture remains unavailable on Android 9.
