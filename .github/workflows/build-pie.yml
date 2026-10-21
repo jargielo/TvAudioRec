@@ -38,9 +38,9 @@ jobs:
               print('Verified raster asset',bitmap,'and launcher images',launcher)
           PY
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk AudioRelay-Grabber-v1.9.6-Huawei-P20-Lite-AMOLED.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk AudioRelay-Grabber-v1.9.7-Huawei-P20-Lite-AMOLED.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: AudioRelay-Grabber-v1.9.6-Android9-AMOLED
-          path: AudioRelay-Grabber-v1.9.6-Huawei-P20-Lite-AMOLED.apk
+          name: AudioRelay-Grabber-v1.9.7-Android9-AMOLED
+          path: AudioRelay-Grabber-v1.9.7-Huawei-P20-Lite-AMOLED.apk
           if-no-files-found: error

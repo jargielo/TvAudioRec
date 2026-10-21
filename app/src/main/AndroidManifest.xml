@@ -4,7 +4,7 @@
  <uses-permission android:name="android.permission.WAKE_LOCK"/>
  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
  <uses-feature android:name="android.hardware.microphone" android:required="true"/>
- <application android:label="Grabber Cyber 1.9.6" android:theme="@android:style/Theme.Material.NoActionBar" android:icon="@drawable/grabber_cyberpunk" android:allowBackup="false" android:usesCleartextTraffic="false">
+ <application android:label="Grabber Cyber 1.9.7" android:theme="@android:style/Theme.Material.NoActionBar" android:icon="@drawable/grabber_cyberpunk" android:allowBackup="false" android:usesCleartextTraffic="false">
    <activity android:name=".MainActivity" android:windowSoftInputMode="adjustResize" android:exported="true">
      <intent-filter>
        <action android:name="android.intent.action.MAIN"/>
@@ -12,6 +12,6 @@
      </intent-filter>
    </activity>
    <service android:name=".RecordingService" android:foregroundServiceType="microphone|mediaProjection" android:exported="false"/>
-   <provider android:name=".ShareProvider" android:authorities="pl.n2s.grabberpie.cyber196.file" android:exported="false" android:grantUriPermissions="true"/>
+   <provider android:name=".ShareProvider" android:authorities="pl.n2s.grabberpie.cyber197.file" android:exported="false" android:grantUriPermissions="true"/>
  </application>
 </manifest>

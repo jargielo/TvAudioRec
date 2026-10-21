@@ -40,6 +40,8 @@ public final class MainActivity extends Activity {
   private FrameLayout outer, drawerOverlay;
   private boolean drawerOpen=false;
   private TextView state, time, fileCount, playerLabel;
+  private Button recordToggle;
+  private boolean recordingActionPending=false;
   private Meter meter;
   private SeekBar progress;
   private MediaPlayer player;
@@ -128,7 +130,7 @@ public final class MainActivity extends Activity {
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  v1.9.6",10,MUTED,false);
+    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  v1.9.7",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -167,11 +169,11 @@ public final class MainActivity extends Activity {
     addLabel(texts,"AudioRelay",21,WHITE,true);
     addLabel(texts,"Grabber",19,MUTED,false);
     gap(drawerPanel,27);
-    String[] names={"Moje nagrania","Źródło dźwięku","Szybkie ustawienia","Jakość nagrywania","Ustawienia","Diagnostyka"};
-    String[] glyphs={"▢","◎","☷","▥","⚙","⌁"};
-    int[] destinations={2,3,4,5,6,7};
+    String[] names={"← Powrót do rejestratora","Moje nagrania","Źródło dźwięku","Szybkie ustawienia","Jakość nagrywania","Ustawienia","Diagnostyka"};
+    String[] glyphs={"●","▢","◎","☷","▥","⚙","⌁"};
+    int[] destinations={0,2,3,4,5,6,7};
     for(int i=0;i<names.length;i++){
-      if(i==4){gap(drawerPanel,9);hairline(drawerPanel);gap(drawerPanel,8);}
+      if(i==1 || i==5){gap(drawerPanel,7);hairline(drawerPanel);gap(drawerPanel,6);}
       final int idx=destinations[i];
       LinearLayout row=horizontal();row.setPadding(dp(13),0,dp(12),0);
       row.setBackground(back(idx==tab?0xff41262c:0xff29282a,0,12));
@@ -188,7 +190,7 @@ public final class MainActivity extends Activity {
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("AudioRelay Grabber  •  n2s\nAndroid 9 Pie / S24 Ultra  •  v1.9.6",12,MUTED,false);
+    TextView foot=label("AudioRelay Grabber  •  n2s\nAndroid 9 Pie / S24 Ultra  •  v1.9.7",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -228,7 +230,7 @@ public final class MainActivity extends Activity {
       }
     }
     page.removeAllViews();
-    state=null;time=null;meter=null;fileCount=null;playerLabel=null;progress=null;
+    state=null;time=null;meter=null;fileCount=null;playerLabel=null;progress=null;recordToggle=null;
     switch(index){
       case 0: recorderPage();break;
       case 1: playerPage();break;
@@ -260,8 +262,16 @@ public final class MainActivity extends Activity {
     meter=new Meter(this);c.addView(meter,new LinearLayout.LayoutParams(-1,dp(92)));
     gap(c,11);
     micro(c,"WIZUALIZACJA SYGNAŁU");gap(c,14);
-    block(c,"●   ROZPOCZNIJ NAGRYWANIE",true,this::start);
-    block(c,"■   STOP I ZAPISZ",false,this::stop);
+    recordToggle=block(c,"●   ROZPOCZNIJ NAGRYWANIE",true,()->{
+      if(recordingActionPending)return;
+      if(RecordingService.running){
+        recordingActionPending=true;
+        stop();
+      } else {
+        recordingActionPending=true;
+        start();
+      }
+    });
     gap(page,6);
     micro(page,"Źródło: "+sourceName()+"     •     "+fmt()+"     •     "+kbps()+" kb/s");
   }
@@ -318,15 +328,18 @@ public final class MainActivity extends Activity {
     gap(page,10);block(page,"‹   REJESTRATOR",false,()->showTab(0));
   }
   private void start(){
-    if(RecordingService.running){toast("Nagrywanie już trwa");return;}
+    if(RecordingService.running){recordingActionPending=false;toast("Nagrywanie już trwa");return;}
     if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
+      recordingActionPending=false;
       requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},42);return;
     }
     if(source()==1){
       if(Build.VERSION.SDK_INT<29){
         new AlertDialog.Builder(this).setTitle("Android 9 Pie")
           .setMessage("Nagrywanie dźwięku wewnętrznego wymaga Androida 10 lub nowszego.")
-          .setPositiveButton("OK",null).show();return;
+          .setPositiveButton("OK",null).show();
+        recordingActionPending=false;
+        return;
       }
       android.media.projection.MediaProjectionManager mgr=
         (android.media.projection.MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE);
@@ -344,7 +357,10 @@ public final class MainActivity extends Activity {
   @Override protected void onActivityResult(int req,int result,Intent data){
     super.onActivityResult(req,result,data);
     if(req==REQUEST_CAPTURE){
-      if(result!=RESULT_OK||data==null){toast("Nie udzielono zgody na nagrywanie wewnętrzne.");return;}
+      if(result!=RESULT_OK||data==null){
+        recordingActionPending=false;
+        toast("Nie udzielono zgody na nagrywanie wewnętrzne.");return;
+      }
       Intent s=new Intent(this,RecordingService.class).setAction(RecordingService.START);
       s.putExtra("source","internal");s.putExtra("projectionCode",result);
       s.putExtra("projectionData",data);
@@ -356,7 +372,14 @@ public final class MainActivity extends Activity {
   }
   private void stop(){
     startService(new Intent(this,RecordingService.class).setAction(RecordingService.STOP));
-    ui.postDelayed(()->{updateNow();if(tab==1)showTab(1);},600);
+    if(recordToggle!=null)recordToggle.setText("■   ZAPISYWANIE...");
+    ui.postDelayed(()->{
+      updateNow();
+      if(recordingActionPending && !RecordingService.running){
+        recordingActionPending=false;
+        updateNow();
+      }
+    },650);
   }
   @Override public void onRequestPermissionsResult(int r,String[] p,int[] x){
     super.onRequestPermissionsResult(r,p,x);
@@ -373,6 +396,19 @@ public final class MainActivity extends Activity {
     }
     if(time!=null){long sec=RecordingService.running?(System.currentTimeMillis()-RecordingService.startedAt)/1000:0;
       time.setText(String.format(Locale.US,"%02d:%02d:%02d",sec/3600,(sec/60)%60,sec%60));}
+    if(recordToggle!=null){
+      boolean recording=RecordingService.running;
+      if(recording)recordingActionPending=false;
+      if(!recording && !recordingActionPending){
+        recordToggle.setText("●   ROZPOCZNIJ NAGRYWANIE");
+      }else if(recording){
+        recordToggle.setText("■   STOP I ZAPISZ");
+      }else{
+        recordToggle.setText("●   URUCHAMIANIE...");
+      }
+      recordToggle.setEnabled(recording || !recordingActionPending);
+      recordToggle.setAlpha(recordToggle.isEnabled()?1f:0.65f);
+    }
     if(meter!=null)meter.invalidate();
     if(player!=null && progress!=null){
       try{progress.setMax(player.getDuration());progress.setProgress(player.getCurrentPosition());}catch(Exception ignored){}
@@ -386,7 +422,9 @@ public final class MainActivity extends Activity {
   }
   private void filesPage(){
     scan();
-    h(page,"MOJE NAGRANIA");gap(page,12);
+    h(page,"MOJE NAGRANIA");gap(page,10);
+    block(page,"‹   POWRÓT DO REJESTRATORA",false,()->showTab(0));
+    gap(page,12);
     LinearLayout c=card(page);
     fileCount=addLabel(c,items.size()+" plików  •  Music/AudioRelay Grabber",15,WHITE,true);
     gap(c,14);
@@ -471,13 +509,17 @@ public final class MainActivity extends Activity {
     }catch(Exception e){toast("Nie można udostępnić: "+e.getMessage());}
   }
   private void favoritesPage(){
-    page.removeAllViews();h(page,"ULUBIONE");gap(page,12);scan();int n=0;
+    page.removeAllViews();h(page,"ULUBIONE");gap(page,8);
+    block(page,"‹   POWRÓT DO REJESTRATORA",false,()->showTab(0));
+    gap(page,10);scan();int n=0;
     for(File f:items)if(fav(f)){fileRow(page,f,false);n++;}
     if(n==0)micro(page,"Brak ulubionych nagrań.");
     block(page,"‹  MOJE NAGRANIA",false,()->showTab(2));
   }
   private void trashPage(){
-    page.removeAllViews();h(page,"KOSZ");gap(page,12);
+    page.removeAllViews();h(page,"KOSZ");gap(page,8);
+    block(page,"‹   POWRÓT DO REJESTRATORA",false,()->showTab(0));
+    gap(page,10);
     File[] ff=trash().listFiles();if(ff==null||ff.length==0)micro(page,"Kosz jest pusty.");
     else for(File f:ff)if(f.isFile())fileRow(page,f,true);
     gap(page,10);block(page,"‹  MOJE NAGRANIA",false,()->showTab(2));
@@ -539,7 +581,7 @@ public final class MainActivity extends Activity {
     micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(2));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"AudioRelay Grabber 1.9.6  •  n2s");
+    micro(about,"AudioRelay Grabber 1.9.7  •  n2s");
     micro(about,"Android: "+Build.VERSION.RELEASE+". Obsługa przechwytywania wewnętrznego od Androida 10.");
   }
   private void diagnosticPage(){
@@ -547,7 +589,7 @@ public final class MainActivity extends Activity {
     LinearLayout c=card(page);title(c,"URZĄDZENIE");
     item(c,"MODEL",Build.MANUFACTURER+" "+Build.MODEL);
     item(c,"ANDROID",Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
-    item(c,"WERSJA","AudioRelay Grabber 1.9.6");
+    item(c,"WERSJA","AudioRelay Grabber 1.9.7");
     item(c,"UPRAWNIENIE MIKROFONU",checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED?"PRZYZNANE":"BRAK");
     item(c,"KATALOG NAGRAŃ",dir().getAbsolutePath());
     item(c,"WOLNE MIEJSCE",String.format(Locale.US,"%.2f GB",dir().getUsableSpace()/1073741824f));
@@ -583,16 +625,41 @@ public final class MainActivity extends Activity {
     }
   }
   private static final class Meter extends View{
-    private final Paint p=new Paint(3);Meter(Activity a){super(a);}
-    @Override protected void onDraw(Canvas c){
-      int n=49;float w=getWidth(),h=getHeight();float spacing=w/n;
-      float v=RecordingService.running?Math.min(1f,RecordingService.reportedLevel()/20000f):0f;
-      for(int i=0;i<n;i++){
-        double wave=0.08+Math.abs(Math.sin(i*.31+System.currentTimeMillis()*.008))*(.15+v*.85);
-        float size=(float)(wave*h*.9f);
-        p.setStrokeWidth(Math.max(2,spacing*.42f));p.setStrokeCap(Paint.Cap.ROUND);
-        p.setColor(i<n*(.15+v*.75)?RED:0xff464646);
-        float xx=spacing*(i+.5f);c.drawLine(xx,h/2-size/2,xx,h/2+size/2,p);
+    private final Paint paint=new Paint(3);
+    private float displayed=0f;
+    Meter(Activity context){super(context);}
+    @Override protected void onDraw(Canvas canvas){
+      super.onDraw(canvas);
+      float width=getWidth();
+      float height=getHeight();
+      float mid=height*0.5f;
+      float threshold=850f; // reject low-level ambient microphone hiss
+      float raw=RecordingService.running?RecordingService.reportedLevel():0f;
+      // Exactly one straight baseline whenever there is no audible input.
+      float volume=raw<=threshold ? 0f : Math.min(1f,(raw-threshold)/16000f);
+      if(!RecordingService.running)displayed=0f;
+      else if(volume==0f)displayed=0f;
+      else displayed=displayed*0.25f+volume*0.75f;
+      paint.setColor(0xff656565);
+      paint.setStrokeWidth(Math.max(2f,getResources().getDisplayMetrics().density*1.8f));
+      paint.setStrokeCap(Paint.Cap.ROUND);
+      if(displayed==0f){
+        canvas.drawLine(0f,mid,width,mid,paint);
+        return;
+      }
+      canvas.drawLine(0f,mid,width,mid,paint);
+      float gap=width/51f;
+      float amp=height*0.46f*displayed;
+      paint.setColor(RED);
+      paint.setStrokeWidth(Math.max(2.1f,gap*0.38f));
+      float motion=System.currentTimeMillis()/105.0f;
+      for(int i=0;i<51;i++){
+        // Motion is shown only while sound exceeds the silence threshold.
+        float shape=(float)(0.19+0.81*Math.abs(Math.sin(i*0.39f+motion)));
+        float envelope=(float)(0.25+0.75*Math.sin(Math.PI*(i+1)/52f));
+        float half=Math.max(1.8f,amp*shape*envelope);
+        float x=gap*(i+0.5f);
+        canvas.drawLine(x,mid-half,x,mid+half,paint);
       }
     }
   }
