@@ -16,7 +16,8 @@ public final class RecordingService extends Service {
   public static volatile long startedAt=0;
   public static volatile int level=0;
   public static volatile String lastError="";
-  private static volatile RecordingService instance;\n  private MediaRecorder recorder;
+  private static volatile RecordingService instance;
+  private MediaRecorder recorder;
   private AudioRecord audio;
   private Thread worker;
   private PowerManager.WakeLock lock;
@@ -27,7 +28,8 @@ public final class RecordingService extends Service {
   @Override public int onStartCommand(Intent intent,int flags,int startId){
     if(intent==null)return START_NOT_STICKY;
     if(STOP.equals(intent.getAction())){finish();stopSelf();return START_NOT_STICKY;}
-    if(!START.equals(intent.getAction())||running)return START_NOT_STICKY;\n    instance=this;
+    if(!START.equals(intent.getAction())||running)return START_NOT_STICKY;
+    instance=this;
     if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){lastError="Brak zgody na mikrofon";stopSelf();return START_NOT_STICKY;}
     NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
     nm.createNotificationChannel(new NotificationChannel("rec","Grabber · Nagrywanie",NotificationManager.IMPORTANCE_LOW));
@@ -96,11 +98,16 @@ public final class RecordingService extends Service {
       try{recorder.reset();}catch(Exception ignored){}recorder.release();recorder=null;
     }
     wavActive=false;
-    if(audio!=null){try{audio.stop();}catch(Exception ignored){}audio.release();audio=null;}
-    if(worker!=null){try{worker.join(1500);}catch(InterruptedException e){Thread.currentThread().interrupt();}worker=null;}
+    if(audio!=null){try{audio.stop();}catch(Exception ignored){}}
+    if(worker!=null){try{worker.join(2000);}catch(InterruptedException e){Thread.currentThread().interrupt();}worker=null;}
+    if(audio!=null){audio.release();audio=null;}
     if(lock!=null){if(lock.isHeld())lock.release();lock=null;}
     stopForeground(true);
   }
   @Override public void onDestroy(){finish();super.onDestroy();}
-  public static int reportedLevel(){\n    RecordingService s=instance;\n    if(s!=null && running && s.recorder!=null){try{return s.recorder.getMaxAmplitude();}catch(Exception ignored){}}\n    return level;\n  }
+  public static int reportedLevel(){
+    RecordingService s=instance;
+    if(s!=null && running && s.recorder!=null){try{return s.recorder.getMaxAmplitude();}catch(Exception ignored){}}
+    return level;
+  }
 }
