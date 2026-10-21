@@ -130,7 +130,7 @@ public final class MainActivity extends Activity {
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  v1.9.7",10,MUTED,false);
+    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  v1.9.8",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -190,7 +190,7 @@ public final class MainActivity extends Activity {
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("AudioRelay Grabber  •  n2s\nAndroid 9 Pie / S24 Ultra  •  v1.9.7",12,MUTED,false);
+    TextView foot=label("AudioRelay Grabber  •  n2s\nAndroid 9 Pie / S24 Ultra  •  v1.9.8",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -250,7 +250,14 @@ public final class MainActivity extends Activity {
   private int kbps(){return prefs.getInt("rate",128);}
   private int hz(){return prefs.getInt("hz",44100);}
   private int source(){return prefs.getInt("source",0);}
-  private String sourceName(){return source()==1?"Dźwięk wewnętrzny":"Mikrofon";}
+  private String sourceName(){
+    switch(source()){
+      case 1:return "Dźwięk wewnętrzny";
+      case 2:return "Mikrofon urządzenia + dźwięk wewnętrzny";
+      case 3:return "Mikrofon Bluetooth + dźwięk wewnętrzny";
+      default:return "Mikrofon urządzenia";
+    }
+  }
   private void recorderPage(){
     h(page,"REJESTRATOR DŹWIĘKU");gap(page,12);
     LinearLayout c=card(page);
@@ -277,40 +284,49 @@ public final class MainActivity extends Activity {
   }
   private void sourcePage(){
     h(page,"ŹRÓDŁO DŹWIĘKU");gap(page,14);
-    LinearLayout c=card(page);
-    title(c,"WYBIERZ ŹRÓDŁO");
-    String[] names={"Mikrofon urządzenia","Dźwięk wewnętrzny (system / aplikacje)"};
-    actionStrip(c,names,source(),i->{
-      if(i==1 && Build.VERSION.SDK_INT<29){
-        new AlertDialog.Builder(this).setTitle("Android 9 Pie")
-          .setMessage("Przechwytywanie wewnętrznego dźwięku innych aplikacji wymaga Androida 10 (API 29) lub nowszego. Na tym urządzeniu pozostaje wybrane nagrywanie mikrofonu.")
-          .setPositiveButton("OK",null).show();return;
-      }
-      prefs.edit().putInt("source",i).apply();
-      showTab(3);
-    });
-    gap(c,12);
-    if(Build.VERSION.SDK_INT>=29)
-      micro(c,"Na Androidzie "+Build.VERSION.RELEASE+" po rozpoczęciu nagrywania wewnętrznego pojawi się systemowe pytanie o zgodę na przechwytywanie. Nie wszystkie aplikacje udostępniają dźwięk.");
-    else
-      micro(c,"Android 9: działa mikrofon. Dźwięk wewnętrzny jest widoczny, lecz niedostępny w tym systemie.");
-    gap(page,10);block(page,"‹   REJESTRATOR",false,()->showTab(0));
+    LinearLayout c=card(page);title(c,"WYBIERZ ŹRÓDŁO");
+    String[] names={"Mikrofon urządzenia","Dźwięk wewnętrzny",
+      "Mikrofon urządzenia + dźwięk wewnętrzny",
+      "Mikrofon Bluetooth + dźwięk wewnętrzny"};
+    for(int i=0;i<names.length;i++){
+      final int sel=i;
+      Button b=block(c,(source()==i?"◉   ":"○   ")+names[i],source()==i,()->{
+        if(sel>0&&Build.VERSION.SDK_INT<29){
+          new AlertDialog.Builder(this).setTitle("Android 9 Pie")
+            .setMessage("Dźwięk wewnętrzny i tryby łączone wymagają Androida 10 lub nowszego. Na tym telefonie działa nagrywanie mikrofonu.")
+            .setPositiveButton("OK",null).show();return;
+        }
+        prefs.edit().putInt("source",sel).apply();showTab(3);
+      });
+      b.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
+    }
+    gap(c,11);
+    micro(c,Build.VERSION.SDK_INT>=29?
+      "Tryby łączone miksują mikrofon i udostępniony dźwięk aplikacji w jednym pliku. Wymagana zgoda systemowa. Mikrofon Bluetooth musi być podłączony i obsługiwać wejście audio.":
+      "Android 9: dostępny mikrofon. Pozostałe źródła są widoczne, ale wymagają Androida 10+.");
+    gap(page,10);block(page,"‹   POWRÓT DO REJESTRATORA",false,()->showTab(0));
   }
   private void quickPage(){
     h(page,"SZYBKIE USTAWIENIA");gap(page,14);
-    LinearLayout quick=card(page);
-    micro(quick,"FORMAT ZAPISU");gap(quick,8);
-    actionStrip(quick,new String[]{"M4A / AAC","WAV / PCM"},fmt().equals("WAV")?1:0,i->{
-      prefs.edit().putString("format",i==0?"M4A":"WAV").apply();showTab(4);
-    });
+    LinearLayout quick=card(page);micro(quick,"FORMAT ZAPISU");gap(quick,9);
+    String[] formats={"M4A","WAV","FLAC","MP3","AAC","3GP","OGG"};
+    String[] labels={"M4A (AAC)","WAV (PCM)","FLAC","MP3","AAC","3GP","OGG (Opus)"};
+    String current=fmt();
+    for(int i=0;i<formats.length;i++){
+      final String f=formats[i];
+      Button b=block(quick,(current.equals(f)?"◉   ":"○   ")+labels[i],current.equals(f),()->{
+        prefs.edit().putString("format",f).apply();showTab(4);
+      });
+      b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+    }
     hairline(quick);micro(quick,"CZĘSTOTLIWOŚĆ");gap(quick,8);
     int[] samples={16000,32000,44100,48000};
     String[] titles={"16 kHz","32 kHz","44,1 kHz","48 kHz"};
-    int selected=2;for(int i=0;i<samples.length;i++)if(samples[i]==hz())selected=i;
-    actionStrip(quick,titles,selected,i->{prefs.edit().putInt("hz",samples[i]).apply();showTab(4);});
-    gap(quick,10);
-    micro(quick,"Przy przechwytywaniu wewnętrznym plik jest zapisywany jako WAV; ustawienie M4A dotyczy mikrofonu.");
-    gap(page,10);block(page,"‹   REJESTRATOR",false,()->showTab(0));
+    int si=2;for(int i=0;i<samples.length;i++)if(samples[i]==hz())si=i;
+    actionStrip(quick,titles,si,i->{prefs.edit().putInt("hz",samples[i]).apply();showTab(4);});
+    gap(quick,11);
+    micro(quick,"FLAC, MP3, AAC, 3GP i OGG są kodowane przez bibliotekę FFmpegKit Audio po zatrzymaniu nagrywania. Plik WAV jest używany jako zapis roboczy.");
+    gap(page,10);block(page,"‹   POWRÓT DO REJESTRATORA",false,()->showTab(0));
   }
   private void qualityPage(){
     h(page,"JAKOŚĆ NAGRYWANIA");gap(page,14);
@@ -328,17 +344,23 @@ public final class MainActivity extends Activity {
     gap(page,10);block(page,"‹   REJESTRATOR",false,()->showTab(0));
   }
   private void start(){
-    if(RecordingService.running){recordingActionPending=false;toast("Nagrywanie już trwa");return;}
+    if(RecordingService.running || RecordingService.processing){recordingActionPending=false;toast("Nagranie jest w toku lub trwa zapis pliku");return;}
     if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
       recordingActionPending=false;
       requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},42);return;
     }
-    if(source()==1){
+    if(source()>0){
       if(Build.VERSION.SDK_INT<29){
         new AlertDialog.Builder(this).setTitle("Android 9 Pie")
           .setMessage("Nagrywanie dźwięku wewnętrznego wymaga Androida 10 lub nowszego.")
           .setPositiveButton("OK",null).show();
         recordingActionPending=false;
+        return;
+      }
+      if(source()==3 && Build.VERSION.SDK_INT>=31 &&
+         checkSelfPermission("android.permission.BLUETOOTH_CONNECT")!=PackageManager.PERMISSION_GRANTED){
+        recordingActionPending=false;
+        requestPermissions(new String[]{"android.permission.BLUETOOTH_CONNECT"},43);
         return;
       }
       android.media.projection.MediaProjectionManager mgr=
@@ -362,9 +384,9 @@ public final class MainActivity extends Activity {
         toast("Nie udzielono zgody na nagrywanie wewnętrzne.");return;
       }
       Intent s=new Intent(this,RecordingService.class).setAction(RecordingService.START);
-      s.putExtra("source","internal");s.putExtra("projectionCode",result);
+      s.putExtra("source",source()==3?"btmix":source()==2?"mix":"internal");s.putExtra("projectionCode",result);
       s.putExtra("projectionData",data);
-      s.putExtra("format","WAV");s.putExtra("hz",hz());
+      s.putExtra("format",fmt());s.putExtra("rate",kbps());s.putExtra("hz",hz());
       startForegroundService(s);
       ui.postDelayed(this::updateNow,450);
     }
@@ -385,11 +407,16 @@ public final class MainActivity extends Activity {
     super.onRequestPermissionsResult(r,p,x);
     if(r==42){if(x.length>0&&x[0]==PackageManager.PERMISSION_GRANTED)start();
       else toast("Bez pozwolenia na mikrofon nagrywanie nie jest możliwe");}
+    if(r==43){
+      if(x.length>0&&x[0]==PackageManager.PERMISSION_GRANTED)start();
+      else toast("Nagrywanie przez Bluetooth wymaga uprawnienia do urządzeń Bluetooth");
+    }
   }
   private void updateNow(){
     if(!uiReady)return;
     if(state!=null) {
-      state.setText(RecordingService.running?"●  TRWA NAGRYWANIE":"GOTOWY DO NAGRYWANIA");
+      state.setText(RecordingService.processing?"ZAPISYWANIE PLIKU...":
+        RecordingService.running?"●  TRWA NAGRYWANIE":"GOTOWY DO NAGRYWANIA");
       state.setTextColor(RecordingService.running?RED:WHITE);
       if(!RecordingService.running && RecordingService.lastError!=null && !RecordingService.lastError.isEmpty())
         state.setText("BŁĄD: "+RecordingService.lastError);
@@ -406,7 +433,8 @@ public final class MainActivity extends Activity {
       }else{
         recordToggle.setText("●   URUCHAMIANIE...");
       }
-      recordToggle.setEnabled(recording || !recordingActionPending);
+      recordToggle.setEnabled(!RecordingService.processing && (recording || !recordingActionPending));
+      if(RecordingService.processing)recordToggle.setText("ZAPISYWANIE...");
       recordToggle.setAlpha(recordToggle.isEnabled()?1f:0.65f);
     }
     if(meter!=null)meter.invalidate();
@@ -416,7 +444,11 @@ public final class MainActivity extends Activity {
   }
   private void scan(){
     items.clear();File[] f=dir().listFiles();if(f!=null)for(File v:f){
-      if(v.isFile()&&(v.getName().toLowerCase(Locale.ROOT).endsWith(".m4a") ||v.getName().toLowerCase(Locale.ROOT).endsWith(".wav")))items.add(v);
+      if(v.isFile()&&!v.getName().endsWith(".partial.wav")&&(
+        v.getName().endsWith(".m4a")||v.getName().endsWith(".wav")||
+        v.getName().endsWith(".mp3")||v.getName().endsWith(".flac")||
+        v.getName().endsWith(".aac")||v.getName().endsWith(".3gp")||
+        v.getName().endsWith(".ogg")))items.add(v);
     }
     Collections.sort(items,(a,b)->sort==1?a.getName().compareToIgnoreCase(b.getName()):Long.compare(b.lastModified(),a.lastModified()));
   }
@@ -442,28 +474,32 @@ public final class MainActivity extends Activity {
       Intent picker=new Intent(Intent.ACTION_OPEN_DOCUMENT);picker.setType("audio/*");
       picker.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(picker,211);
     });
-    if(items.isEmpty()){micro(page,"Brak nagrań — rozpocznij pierwsze nagranie.");return;}
+    if(items.isEmpty()){micro(page,RecordingService.processing?"Trwa kodowanie i zapis pliku...":"Brak nagrań — rozpocznij pierwsze nagranie.");return;}
     for(File f:items){
       if(!search.trim().isEmpty()&&!f.getName().toLowerCase(Locale.ROOT).contains(search.toLowerCase(Locale.ROOT)))continue;
       fileRow(page,f,false);
     }
   }
   private void fileRow(LinearLayout into,File f,boolean trashed){
-    LinearLayout c=card(into);c.setPadding(dp(12),dp(13),dp(12),dp(13));
-    LinearLayout line=horizontal();c.addView(line);
-    TextView info=label((fav(f)?"★  ":"▶  ")+f.getName(),14,WHITE,true);info.setMaxLines(2);info.setEllipsize(android.text.TextUtils.TruncateAt.END);
-    line.addView(info,new LinearLayout.LayoutParams(0,-2,1));info.setOnClickListener(v->{currentFile=f;showTab(1);play(f);});
-    TextView sz=label(String.format(Locale.US,"%.1f MB",f.length()/1048576f),12,MUTED,false);
-    line.addView(sz);hairline(c);
-    LinearLayout controls=horizontal();c.addView(controls);
-    chip(controls,"ODTWÓRZ",()->{currentFile=f;showTab(1);play(f);});
-    chip(controls,trashed?"PRZYWRÓĆ":"★",()->{
-      if(trashed) {File to=new File(dir(),f.getName());if(f.renameTo(to)){toast("Przywrócono");trashPage();}}
-      else {prefs.edit().putBoolean("fav_"+f.getAbsolutePath(),!fav(f)).apply();showTab(2);}
-    });
-    chip(controls,trashed?"USUŃ":"WIĘCEJ",()->{
-      if(trashed)confirm("Usunąć na stałe?",f.getName(),()->{f.delete();trashPage();});
-      else fileMenu(f);
+    LinearLayout item=card(into);
+    item.setPadding(dp(12),dp(9),dp(12),dp(9));
+    LinearLayout row=horizontal();item.addView(row,new LinearLayout.LayoutParams(-1,dp(50)));
+    TextView filename=label("♪   "+f.getName(),14,WHITE,true);
+    filename.setSingleLine(true);
+    filename.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    row.addView(filename,new LinearLayout.LayoutParams(0,-1,1));
+    TextView more=label(String.format(Locale.US,"%.1f MB  ›",f.length()/1048576f),12,MUTED,false);
+    row.addView(more);
+    item.setOnClickListener(v->{
+      if(trashed){
+        new AlertDialog.Builder(this).setTitle("Nagranie w koszu")
+          .setItems(new String[]{"Przywróć","Usuń na stałe"},(d,which)->{
+            if(which==0 && f.renameTo(new File(dir(),f.getName())))trashPage();
+            if(which==1)confirm("Usunąć trwale?",f.getName(),()->{f.delete();trashPage();});
+          }).show();
+      }else{
+        currentFile=f;showTab(1);play(f);
+      }
     });
   }
   private void chip(LinearLayout parent,String title,Runnable click){
@@ -502,7 +538,7 @@ public final class MainActivity extends Activity {
   private void share(File f){
     try {
       Uri u=new Uri.Builder().scheme("content").authority(getPackageName()+".file").appendPath(f.getName()).build();
-      Intent intent=new Intent(Intent.ACTION_SEND);intent.setType(f.getName().endsWith(".wav")?"audio/wav":"audio/mp4");
+      Intent intent=new Intent(Intent.ACTION_SEND);intent.setType(getContentResolver().getType(u));
       intent.putExtra(Intent.EXTRA_STREAM,u);intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
       intent.setClipData(ClipData.newUri(getContentResolver(),f.getName(),u));
       startActivity(Intent.createChooser(intent,"Udostępnij nagranie"));
@@ -540,22 +576,51 @@ public final class MainActivity extends Activity {
       }catch(Exception e){toast("Błąd importu: "+e.getMessage());dst.delete();}
   }
   private void playerPage(){
-    h(page,"ODTWARZACZ");gap(page,12);LinearLayout c=card(page);
+    h(page,"ODTWARZACZ");gap(page,12);
+    LinearLayout c=card(page);
     playerLabel=addLabel(c,currentFile==null?"Wybierz nagranie z listy.":currentFile.getName(),16,WHITE,true);
-    gap(c,18);
-    Meter waveform=new Meter(this);c.addView(waveform,new LinearLayout.LayoutParams(-1,dp(95)));
-    progress=new SeekBar(this);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(RED));
+    gap(c,17);
+    Meter waveform=new Meter(this);c.addView(waveform,new LinearLayout.LayoutParams(-1,dp(91)));
+    progress=new SeekBar(this);
+    progress.setProgressTintList(android.content.res.ColorStateList.valueOf(RED));
     progress.setThumbTintList(android.content.res.ColorStateList.valueOf(RED));
-    c.addView(progress);progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
-      @Override public void onProgressChanged(SeekBar b,int value,boolean user){if(user&&player!=null)player.seekTo(value);}
-      @Override public void onStartTrackingTouch(SeekBar b){} @Override public void onStopTrackingTouch(SeekBar b){}
+    c.addView(progress);
+    progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+      @Override public void onProgressChanged(SeekBar seek,int value,boolean user){
+        if(user&&player!=null)player.seekTo(value);
+      }
+      @Override public void onStartTrackingTouch(SeekBar seek){}
+      @Override public void onStopTrackingTouch(SeekBar seek){}
     });
     actionStrip(c,new String[]{"▶   ODTWÓRZ","Ⅱ   PAUZA","■   STOP"},-1,i->{
       if(i==0){if(player!=null)player.start();else if(currentFile!=null)play(currentFile);else showTab(2);}
-      else if(i==1){if(player!=null && player.isPlaying())player.pause();}
+      else if(i==1){if(player!=null&&player.isPlaying())player.pause();}
       else stopPlayer();
     });
-    gap(page,11);block(page,"PRZEJDŹ DO MOICH NAGRAŃ  ›",false,()->showTab(2));
+    if(currentFile!=null && currentFile.exists()){
+      final File f=currentFile;
+      LinearLayout chosen=card(page);
+      title(chosen,"WYBRANE NAGRANIE");
+      TextView name=addLabel(chosen,f.getName(),15,WHITE,true);
+      name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+      gap(chosen,6);
+      micro(chosen,String.format(Locale.US,"Rozmiar %.1f MB",f.length()/1048576f));
+      hairline(chosen);
+      LinearLayout actions=horizontal();chosen.addView(actions);
+      chip(actions,"OTWÓRZ",()->{
+        if(player!=null)player.start();
+        else play(f);
+      });
+      chip(actions,fav(f)?"★":"☆",()->{
+        prefs.edit().putBoolean("fav_"+f.getAbsolutePath(),!fav(f)).apply();
+        showTab(1);
+      });
+      chip(actions,"WIĘCEJ",()->fileMenu(f));
+    }else{
+      LinearLayout empty=card(page);micro(empty,"Wybierz nagranie z listy Moje nagrania.");
+    }
+    gap(page,10);
+    block(page,"MOJE NAGRANIA  ›",false,()->showTab(2));
   }
   private void play(File f){
     stopPlayer();currentFile=f;
@@ -581,7 +646,7 @@ public final class MainActivity extends Activity {
     micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(2));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"AudioRelay Grabber 1.9.7  •  n2s");
+    micro(about,"AudioRelay Grabber 1.9.8  •  n2s");
     micro(about,"Android: "+Build.VERSION.RELEASE+". Obsługa przechwytywania wewnętrznego od Androida 10.");
   }
   private void diagnosticPage(){
@@ -589,7 +654,7 @@ public final class MainActivity extends Activity {
     LinearLayout c=card(page);title(c,"URZĄDZENIE");
     item(c,"MODEL",Build.MANUFACTURER+" "+Build.MODEL);
     item(c,"ANDROID",Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
-    item(c,"WERSJA","AudioRelay Grabber 1.9.7");
+    item(c,"WERSJA","AudioRelay Grabber 1.9.8");
     item(c,"UPRAWNIENIE MIKROFONU",checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED?"PRZYZNANE":"BRAK");
     item(c,"KATALOG NAGRAŃ",dir().getAbsolutePath());
     item(c,"WOLNE MIEJSCE",String.format(Locale.US,"%.2f GB",dir().getUsableSpace()/1073741824f));

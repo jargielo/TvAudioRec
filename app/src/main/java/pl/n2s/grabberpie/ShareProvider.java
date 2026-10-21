@@ -23,7 +23,18 @@ public final class ShareProvider extends ContentProvider {
    if(!"r".equals(m))throw new FileNotFoundException("Read only");
    return ParcelFileDescriptor.open(get(u),ParcelFileDescriptor.MODE_READ_ONLY);
  }
- @Override public String getType(Uri u){return u.getLastPathSegment()!=null&&u.getLastPathSegment().endsWith(".wav")?"audio/wav":"audio/mp4";}
+ @Override public String getType(Uri u){
+   String name=u.getLastPathSegment();
+   if(name==null)return "audio/*";
+   name=name.toLowerCase(java.util.Locale.ROOT);
+   if(name.endsWith(".wav"))return "audio/wav";
+   if(name.endsWith(".mp3"))return "audio/mpeg";
+   if(name.endsWith(".flac"))return "audio/flac";
+   if(name.endsWith(".aac"))return "audio/aac";
+   if(name.endsWith(".ogg"))return "audio/ogg";
+   if(name.endsWith(".3gp"))return "audio/3gpp";
+   return "audio/mp4";
+ }
  @Override public Cursor query(Uri u,String[] projection,String selection,String[] args,String order){
    try{
      File f=get(u);MatrixCursor c=new MatrixCursor(new String[]{OpenableColumns.DISPLAY_NAME,OpenableColumns.SIZE});
