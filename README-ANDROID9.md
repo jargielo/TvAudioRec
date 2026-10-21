@@ -1,7 +1,9 @@
-# AudioRelay Grabber 1.9.3 — Android 9 Pie
+# AudioRelay Grabber 1.9.4 — Android 9 Pie
 
-Full multi-page AMOLED Black UI inspired by the original 1.9.0 AudioRelay Grabber APK.
-Pages: recorder with meter, quick settings (M4A/WAV, sample rate, bit rate), My Recordings, audio player, Settings, Diagnostics.
-Recording via foreground microphone service, API 28 and Huawei P20 Lite ANE-LX1.
-File rename, playback, favorites, trash, import and sharing.
-System AudioPlaybackCapture is API 29+, therefore internal audio capture remains unavailable on Android 9.
+Full AMOLED Black UI with cyberpunk icon in Android launcher and application. The upper-right three-dot button opens a left sliding navigation drawer. All five pages are in the drawer; the old horizontal tab bar is removed.
+
+Pages: Nagrywanie, Moje nagrania, Odtwarzacz, Ustawienia, Diagnostyka.
+
+Huawei P20 Lite ANE-LX1, EMUI 9.1 / Android 9 (API 28). Supports MIC recording in M4A / WAV. Internal audio option stays visible but displays an informative message (AudioPlaybackCapture requires Android 10).
+
+Before uninstalling an old version, export recordings from its application-specific music storage. Debug signing keys may differ between GitHub builds; the update may need reinstallation.
