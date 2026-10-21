@@ -29,7 +29,7 @@ public final class RecordingService extends Service {
   private boolean scoStarted=false;
   private volatile boolean capturing=false;
   private File temporary, target;
-  private int hz=44100, kbps=128;
+  private int hz=44100, kbps=128, channels=1, micChannels=1;
   private String format="M4A", source="microphone";
   @Override public IBinder onBind(Intent intent){return null;}
   @Override public int onStartCommand(Intent intent,int flags,int id){
@@ -47,6 +47,7 @@ public final class RecordingService extends Service {
     hz=intent.getIntExtra("hz",44100);
     if(hz!=16000&&hz!=32000&&hz!=44100&&hz!=48000)hz=44100;
     kbps=intent.getIntExtra("rate",128);
+    channels=intent.getIntExtra("channels",1)==2?2:1;
     audioManager=(AudioManager)getSystemService(AUDIO_SERVICE);
     NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
     manager.createNotificationChannel(new NotificationChannel("rec","Grabber - nagrywanie",NotificationManager.IMPORTANCE_LOW));
@@ -84,8 +85,12 @@ public final class RecordingService extends Service {
     return START_NOT_STICKY;
   }
   private AudioRecord createMic(int buffer,boolean bluetooth)throws Exception{
+    micChannels=bluetooth?1:channels;
+    int mask=micChannels==2?AudioFormat.CHANNEL_IN_STEREO:AudioFormat.CHANNEL_IN_MONO;
+    int minimum=AudioRecord.getMinBufferSize(hz,mask,AudioFormat.ENCODING_PCM_16BIT);
+    if(minimum<=0)throw new IOException("Wybrane urządzenie nie obsługuje nagrywania "+(channels==2?"stereo":"mono"));
     AudioRecord mic=new AudioRecord(MediaRecorder.AudioSource.MIC,hz,
-      AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT,buffer);
+      mask,AudioFormat.ENCODING_PCM_16BIT,Math.max(buffer,minimum*4));
     if(mic.getState()!=AudioRecord.STATE_INITIALIZED){
       mic.release();throw new IOException("Mikrofon urządzenia jest niedostępny");
     }
@@ -108,7 +113,8 @@ public final class RecordingService extends Service {
     return mic;
   }
   private void startCapture(Intent intent)throws Exception{
-    int size=AudioRecord.getMinBufferSize(hz,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT);
+    int mask=channels==2?AudioFormat.CHANNEL_IN_STEREO:AudioFormat.CHANNEL_IN_MONO;
+    int size=AudioRecord.getMinBufferSize(hz,mask,AudioFormat.ENCODING_PCM_16BIT);
     if(size<=0)throw new IOException("Nieobsługiwana częstotliwość "+hz);
     int buffer=Math.max(8192,size*4);
     boolean wantsInternal=!"microphone".equals(source);
@@ -131,7 +137,7 @@ public final class RecordingService extends Service {
         .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
         .addMatchingUsage(AudioAttributes.USAGE_GAME).build();
       AudioFormat pcm=new AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-        .setSampleRate(hz).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build();
+        .setSampleRate(hz).setChannelMask(mask).build();
       internalRecord=new AudioRecord.Builder().setAudioPlaybackCaptureConfig(cfg)
         .setAudioFormat(pcm).setBufferSizeInBytes(buffer).build();
       if(internalRecord.getState()!=AudioRecord.STATE_INITIALIZED)
@@ -155,25 +161,35 @@ public final class RecordingService extends Service {
   private void writeAudio(boolean mix){
     try(RandomAccessFile out=new RandomAccessFile(temporary,"rw")){
       out.setLength(0);
-      out.write(WaveHelper.header(0,hz,1));
-      byte[] a=new byte[4096],b=new byte[4096];
+      out.write(WaveHelper.header(0,hz,channels));
+      byte[] a=new byte[8192],b=new byte[8192];
       long total=0;
+      int bytesPerFrame=channels*2;
       while(capturing){
         AudioRecord primary=internalRecord!=null?internalRecord:microphoneRecord;
-        int n=primary.read(a,0,a.length);
+        int n=primary.read(a,0,a.length-(a.length%bytesPerFrame));
         if(n<=0){
           if(capturing)lastError="Odczyt audio nieudany: "+n;
           break;
         }
-        if(mix && microphoneRecord!=null){
-          int m=microphoneRecord.read(b,0,n);
+        n=n-(n%bytesPerFrame);
+        if(mix && microphoneRecord!=null && n>0){
+          int frames=n/bytesPerFrame;
+          int expectedBytes=frames*micChannels*2;
+          int m=microphoneRecord.read(b,0,Math.min(expectedBytes,b.length));
           if(m>0){
-            int count=Math.min(n,m)&~1;
-            for(int i=0;i<count;i+=2){
-              int left=(short)(((a[i+1]&255)<<8)|(a[i]&255));
-              int right=(short)(((b[i+1]&255)<<8)|(b[i]&255));
-              int combined=Math.max(-32768,Math.min(32767,(left+right)/2));
-              a[i]=(byte)combined;a[i+1]=(byte)(combined>>>8);
+            int capturedFrames=m/(micChannels*2);
+            for(int frame=0;frame<Math.min(frames,capturedFrames);frame++){
+              for(int channel=0;channel<channels;channel++){
+                int off=(frame*channels+channel)*2;
+                int micChannel=micChannels==1?0:channel;
+                int micOff=(frame*micChannels+micChannel)*2;
+                int playback=(short)(((a[off+1]&255)<<8)|(a[off]&255));
+                int microphone=(short)(((b[micOff+1]&255)<<8)|(b[micOff]&255));
+                int combined=Math.max(-32768,Math.min(32767,(playback+microphone)/2));
+                a[off]=(byte)combined;
+                a[off+1]=(byte)(combined>>>8);
+              }
             }
           }
         }
@@ -182,7 +198,7 @@ public final class RecordingService extends Service {
         level=amplitude(a,n);
       }
       out.seek(0);
-      out.write(WaveHelper.header(total,hz,1));
+      out.write(WaveHelper.header(total,hz,channels));
     }catch(Exception e){
       lastError="Błąd zapisu WAV: "+e.getMessage();
     }

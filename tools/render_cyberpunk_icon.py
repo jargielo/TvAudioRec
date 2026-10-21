@@ -1,60 +1,57 @@
 #!/usr/bin/env python3
-"""Produce ONE consistent solid-black raster icon for Huawei/EMUI launcher and inside app."""
+"""A single consistent cyberpunk logo for legacy and adaptive Android launchers."""
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter
-
 S=1024
-CX=CY=S//2
-R=395
-base=Image.new("RGBA",(S,S),(0,0,0,255))
+C=S//2
+R=268
+DOT=53
 
-def glow_ring(width,opacity,blur,color=(255,18,54)):
-    mask=Image.new("L",(S,S),0)
-    ImageDraw.Draw(mask).ellipse((CX-R,CY-R,CX+R,CY+R),outline=opacity,width=width)
-    mask=mask.filter(ImageFilter.GaussianBlur(blur))
-    layer=Image.new("RGBA",(S,S),(*color,0))
-    layer.putalpha(mask)
-    return layer
+def ring_image():
+    alpha=Image.new("RGBA",(S,S),(0,0,0,0))
+    def glow(x,y,rgb,rad,blur):
+        mask=Image.new("L",(S,S))
+        ImageDraw.Draw(mask).ellipse((x-rad,y-rad,x+rad,y+rad),fill=255)
+        mask=mask.filter(ImageFilter.GaussianBlur(blur))
+        layer=Image.new("RGBA",(S,S),rgb+(0,))
+        layer.putalpha(mask)
+        return layer
+    def outline_glow(width, blur, intensity):
+        mask=Image.new("L",(S,S),0)
+        ImageDraw.Draw(mask).ellipse((C-R,C-R,C+R,C+R),outline=intensity,width=width)
+        blurred=mask.filter(ImageFilter.GaussianBlur(blur))
+        img=Image.new("RGBA",(S,S),(255,20,55,0))
+        img.putalpha(blurred)
+        return img
+    for width,blur,intensity in [(58,33,75),(34,18,120),(17,7,150)]:
+        alpha=Image.alpha_composite(alpha,outline_glow(width,blur,intensity))
+    core=Image.new("RGBA",(S,S),(0,0,0,0))
+    p=ImageDraw.Draw(core)
+    p.ellipse((C-R,C-R,C+R,C+R),outline=(245,23,57,255),width=11)
+    p.ellipse((C-R+2,C-R+2,C+R-2,C+R-2),outline=(255,239,244,255),width=6)
+    alpha=Image.alpha_composite(alpha,core)
+    alpha=Image.alpha_composite(alpha,glow(C-R,C,(255,10,45),84,21))
+    dot=Image.new("RGBA",(S,S),(0,0,0,0))
+    d=ImageDraw.Draw(dot)
+    x=C-R
+    d.ellipse((x-DOT,C-DOT,x+DOT,C+DOT),fill=(251,6,48,255),outline=(255,246,246,255),width=6)
+    return Image.alpha_composite(alpha,dot)
 
-for width,opacity,blur in [(60,76,43),(43,100,26),(19,125,13),(8,120,7)]:
-    base=Image.alpha_composite(base,glow_ring(width,opacity,blur))
-
-line=Image.new("RGBA",(S,S),(0,0,0,0))
-d=ImageDraw.Draw(line)
-d.ellipse((CX-R,CY-R,CX+R,CY+R),outline=(255,34,63,255),width=17)
-d.ellipse((CX-R+3,CY-R+3,CX+R-3,CY+R-3),outline=(255,243,243,255),width=11)
-base=Image.alpha_composite(base,line)
-
-arc=Image.new("RGBA",(S,S),(0,0,0,0))
-ImageDraw.Draw(arc).arc((CX-R,CY-R,CX+R,CY+R),4,175,fill=(255,19,52,210),width=6)
-base=Image.alpha_composite(base,arc.filter(ImageFilter.GaussianBlur(6)))
-
-X,Y=CX-R,CY
-node=Image.new("RGBA",(S,S),(0,0,0,0))
-n=ImageDraw.Draw(node)
-for radius,color in [(92,(255,10,42,37)),(78,(255,8,40,55)),(62,(255,14,42,77))]:
-    n.ellipse((X-radius,Y-radius,X+radius,Y+radius),fill=color)
-base=Image.alpha_composite(base,node.filter(ImageFilter.GaussianBlur(20)))
-sharp=Image.new("RGBA",(S,S),(0,0,0,0))
-ImageDraw.Draw(sharp).ellipse((X-82,Y-82,X+82,Y+82),fill=(252,7,44,255),
-                              outline=(255,237,237,255),width=7)
-base=Image.alpha_composite(base,sharp)
-
-rgb=base.convert("RGB")
-root=Path("app/src/main/res")
-targets={"drawable-nodpi/grabber_cyberpunk.png":512,
-         "mipmap-mdpi/ic_launcher.png":48,
-         "mipmap-hdpi/ic_launcher.png":72,
-         "mipmap-xhdpi/ic_launcher.png":96,
-         "mipmap-xxhdpi/ic_launcher.png":144,
-         "mipmap-xxxhdpi/ic_launcher.png":192}
-for file,size in targets.items():
-    dest=root/file
-    dest.parent.mkdir(parents=True,exist_ok=True)
-    rgb.resize((size,size),Image.Resampling.LANCZOS).save(dest,optimize=True)
-    assert Image.open(dest).getpixel((0,0))==(0,0,0), "Icon background must be opaque black"
-    print("RENDERED",dest,size,dest.stat().st_size)
-
-# This build must never accidentally revert to the obsolete XML vector/adaptive icon.
-assert not (root/"drawable/grabber_cyberpunk.xml").exists()
-assert not (root/"mipmap-anydpi-v26/ic_launcher.xml").exists()
+overlay=ring_image()
+flat=Image.new("RGB",(S,S),(0,0,0))
+flat.paste(overlay,mask=overlay.getchannel("A"))
+resources=Path("app/src/main/res")
+destination=resources/"drawable-nodpi/grabber_cyberpunk.png"
+destination.parent.mkdir(parents=True,exist_ok=True)
+flat.resize((512,512),Image.Resampling.LANCZOS).save(destination,optimize=True)
+dest=resources/"drawable-nodpi/cyberpunk_foreground.png"
+overlay.resize((512,512),Image.Resampling.LANCZOS).save(dest,optimize=True)
+for directory,size in [("mipmap-mdpi",48),("mipmap-hdpi",72),("mipmap-xhdpi",96),("mipmap-xxhdpi",144),("mipmap-xxxhdpi",192)]:
+    p=resources/directory
+    p.mkdir(parents=True,exist_ok=True)
+    for name in ["ic_launcher.png","ic_launcher_round.png"]:
+        file=p/name
+        flat.resize((size,size),Image.Resampling.LANCZOS).save(file,optimize=True)
+        assert Image.open(file).getpixel((0,0))==(0,0,0)
+        print(file,file.stat().st_size)
+assert not (resources/"drawable/grabber_cyberpunk.xml").exists()

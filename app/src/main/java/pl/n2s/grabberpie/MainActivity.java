@@ -51,6 +51,7 @@ public final class MainActivity extends Activity {
   private int tab=0;
   private int sort=0;
   private String search="";
+  private int expandedConfig=-1;
   private SharedPreferences prefs;
   private boolean uiReady;
   private int dp(float v){return (int)(getResources().getDisplayMetrics().density*v+.5f);}
@@ -130,7 +131,7 @@ public final class MainActivity extends Activity {
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  v1.9.8",10,MUTED,false);
+    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  v1.9.9",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -169,11 +170,11 @@ public final class MainActivity extends Activity {
     addLabel(texts,"AudioRelay",21,WHITE,true);
     addLabel(texts,"Grabber",19,MUTED,false);
     gap(drawerPanel,27);
-    String[] names={"← Powrót do rejestratora","Moje nagrania","Źródło dźwięku","Szybkie ustawienia","Jakość nagrywania","Ustawienia","Diagnostyka"};
-    String[] glyphs={"●","▢","◎","☷","▥","⚙","⌁"};
-    int[] destinations={0,2,3,4,5,6,7};
+    String[] names={"← Powrót do rejestratora","Moje nagrania","Konfiguracja nagrania","Ustawienia","Diagnostyka"};
+    String[] glyphs={"●","▢","☷","⚙","⌁"};
+    int[] destinations={0,2,3,6,7};
     for(int i=0;i<names.length;i++){
-      if(i==1 || i==5){gap(drawerPanel,7);hairline(drawerPanel);gap(drawerPanel,6);}
+      if(i==1 || i==3){gap(drawerPanel,7);hairline(drawerPanel);gap(drawerPanel,6);}
       final int idx=destinations[i];
       LinearLayout row=horizontal();row.setPadding(dp(13),0,dp(12),0);
       row.setBackground(back(idx==tab?0xff41262c:0xff29282a,0,12));
@@ -190,7 +191,7 @@ public final class MainActivity extends Activity {
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("AudioRelay Grabber  •  n2s\nAndroid 9 Pie / S24 Ultra  •  v1.9.8",12,MUTED,false);
+    TextView foot=label("AudioRelay Grabber  •  n2s\nAndroid 9 Pie / S24 Ultra  •  v1.9.9",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -235,9 +236,9 @@ public final class MainActivity extends Activity {
       case 0: recorderPage();break;
       case 1: playerPage();break;
       case 2: filesPage();break;
-      case 3: sourcePage();break;
-      case 4: quickPage();break;
-      case 5: qualityPage();break;
+      case 3: configPage();break;
+      case 4: configPage();break;
+      case 5: configPage();break;
       case 6: settingsPage();break;
       default: diagnosticPage();break;
     }
@@ -282,66 +283,81 @@ public final class MainActivity extends Activity {
     gap(page,6);
     micro(page,"Źródło: "+sourceName()+"     •     "+fmt()+"     •     "+kbps()+" kb/s");
   }
-  private void sourcePage(){
-    h(page,"ŹRÓDŁO DŹWIĘKU");gap(page,14);
-    LinearLayout c=card(page);title(c,"WYBIERZ ŹRÓDŁO");
-    String[] names={"Mikrofon urządzenia","Dźwięk wewnętrzny",
-      "Mikrofon urządzenia + dźwięk wewnętrzny",
-      "Mikrofon Bluetooth + dźwięk wewnętrzny"};
-    for(int i=0;i<names.length;i++){
-      final int sel=i;
-      Button b=block(c,(source()==i?"◉   ":"○   ")+names[i],source()==i,()->{
-        if(sel>0&&Build.VERSION.SDK_INT<29){
-          new AlertDialog.Builder(this).setTitle("Android 9 Pie")
-            .setMessage("Dźwięk wewnętrzny i tryby łączone wymagają Androida 10 lub nowszego. Na tym telefonie działa nagrywanie mikrofonu.")
-            .setPositiveButton("OK",null).show();return;
-        }
-        prefs.edit().putInt("source",sel).apply();showTab(3);
-      });
-      b.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
-    }
-    gap(c,11);
-    micro(c,Build.VERSION.SDK_INT>=29?
-      "Tryby łączone miksują mikrofon i udostępniony dźwięk aplikacji w jednym pliku. Wymagana zgoda systemowa. Mikrofon Bluetooth musi być podłączony i obsługiwać wejście audio.":
-      "Android 9: dostępny mikrofon. Pozostałe źródła są widoczne, ale wymagają Androida 10+.");
-    gap(page,10);block(page,"‹   POWRÓT DO REJESTRATORA",false,()->showTab(0));
+
+  private int channels(){return prefs.getInt("channels",1)==2?2:1;}
+  private LinearLayout configCard(int index,String heading,String selected){
+    LinearLayout section=card(page);
+    TextView title=label(heading+"   "+(expandedConfig==index?"⌃":"⌄"),16,WHITE,true);
+    title.setPadding(dp(3),dp(5),dp(3),dp(5));
+    section.addView(title,new LinearLayout.LayoutParams(-1,dp(37)));
+    TextView summary=label(selected,13,MUTED,false);
+    summary.setPadding(dp(3),0,dp(3),dp(7));
+    section.addView(summary,new LinearLayout.LayoutParams(-1,-2));
+    title.setOnClickListener(v->{expandedConfig=(expandedConfig==index?-1:index);showTab(3);});
+    summary.setOnClickListener(v->{expandedConfig=(expandedConfig==index?-1:index);showTab(3);});
+    return section;
   }
-  private void quickPage(){
-    h(page,"SZYBKIE USTAWIENIA");gap(page,14);
-    LinearLayout quick=card(page);micro(quick,"FORMAT ZAPISU");gap(quick,9);
-    String[] formats={"M4A","WAV","FLAC","MP3","AAC","3GP","OGG"};
-    String[] labels={"M4A (AAC)","WAV (PCM)","FLAC","MP3","AAC","3GP","OGG (Opus)"};
-    String current=fmt();
-    for(int i=0;i<formats.length;i++){
-      final String f=formats[i];
-      Button b=block(quick,(current.equals(f)?"◉   ":"○   ")+labels[i],current.equals(f),()->{
-        prefs.edit().putString("format",f).apply();showTab(4);
-      });
-      b.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+  private void configPage(){
+    h(page,"KONFIGURACJA NAGRANIA");gap(page,11);
+    micro(page,"Rozwiń wybraną sekcję i ustaw parametry nagrywania.");
+    gap(page,17);
+    LinearLayout formats=configCard(0,"Format zapisu",fmt());
+    if(expandedConfig==0){
+      String[] fmts={"M4A","WAV","FLAC","MP3","AAC","3GP","OGG"};
+      for(String f:fmts){
+        Button b=block(formats,(fmt().equals(f)?"◉   ":"○   ")+f,fmt().equals(f),()->{
+          prefs.edit().putString("format",f).apply();showTab(3);
+        });
+        b.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
+      }
     }
-    hairline(quick);micro(quick,"CZĘSTOTLIWOŚĆ");gap(quick,8);
-    int[] samples={16000,32000,44100,48000};
-    String[] titles={"16 kHz","32 kHz","44,1 kHz","48 kHz"};
-    int si=2;for(int i=0;i<samples.length;i++)if(samples[i]==hz())si=i;
-    actionStrip(quick,titles,si,i->{prefs.edit().putInt("hz",samples[i]).apply();showTab(4);});
-    gap(quick,11);
-    micro(quick,"FLAC, MP3, AAC, 3GP i OGG są kodowane przez bibliotekę FFmpegKit Audio po zatrzymaniu nagrywania. Plik WAV jest używany jako zapis roboczy.");
+    LinearLayout freq=configCard(1,"Częstotliwość",hz()+" Hz");
+    if(expandedConfig==1){
+      int[] values={16000,32000,44100,48000};
+      String[] names={"16 kHz","32 kHz","44,1 kHz","48 kHz"};
+      int sel=2;for(int i=0;i<values.length;i++)if(hz()==values[i])sel=i;
+      actionStrip(freq,names,sel,i->{
+        prefs.edit().putInt("hz",values[i]).apply();showTab(3);
+      });
+    }
+    LinearLayout quality=configCard(2,"Jakość nagrania",kbps()+" kb/s");
+    if(expandedConfig==2){
+      int[] rates={96,128,192,256,320};
+      String[] names={"96","128","192","256","320"};
+      int sel=1;for(int i=0;i<rates.length;i++)if(kbps()==rates[i])sel=i;
+      actionStrip(quality,names,sel,i->{
+        prefs.edit().putInt("rate",rates[i]).apply();showTab(3);
+      });
+      gap(quality,8);micro(quality,"Przepływność dotyczy formatów stratnych; FLAC i WAV zachowują PCM.");
+    }
+    LinearLayout chan=configCard(3,"Kanały",channels()==2?"Stereo (2 kanały)":"Mono (1 kanał)");
+    if(expandedConfig==3){
+      actionStrip(chan,new String[]{"MONO","STEREO"},channels()==2?1:0,i->{
+        prefs.edit().putInt("channels",i==1?2:1).apply();showTab(3);
+      });
+      gap(chan,8);
+      micro(chan,"Stereo zapisuje dwa kanały PCM, jeżeli wybrane urządzenie udostępnia takie wejście. Mikrofony Bluetooth SCO zwykle działają w mono; w trybie miksowania dźwięk z nich zostaje rozdzielony na kanały stereo.");
+    }
+    LinearLayout src=configCard(4,"Źródło dźwięku",sourceName());
+    if(expandedConfig==4){
+      String[] names={"Mikrofon urządzenia","Dźwięk wewnętrzny",
+        "Mikrofon urządzenia + dźwięk wewnętrzny",
+        "Mikrofon Bluetooth + dźwięk wewnętrzny"};
+      for(int i=0;i<names.length;i++){
+        final int chosen=i;
+        Button b=block(src,(source()==i?"◉   ":"○   ")+names[i],source()==i,()->{
+          if(chosen>0 && Build.VERSION.SDK_INT<29){
+            new AlertDialog.Builder(this).setTitle("Android 9 Pie")
+              .setMessage("Ta funkcja wymaga Androida 10 lub nowszego. Mikrofon urządzenia pozostaje dostępny.")
+              .setPositiveButton("OK",null).show();return;
+          }
+          prefs.edit().putInt("source",chosen).apply();showTab(3);
+        });
+        b.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
+      }
+      gap(src,9);micro(src,"Przechwytywanie dźwięku wewnętrznego wymaga zgody systemowej i wsparcia ze strony źródłowej aplikacji.");
+    }
     gap(page,10);block(page,"‹   POWRÓT DO REJESTRATORA",false,()->showTab(0));
-  }
-  private void qualityPage(){
-    h(page,"JAKOŚĆ NAGRYWANIA");gap(page,14);
-    LinearLayout c=card(page);
-    micro(c,"JAKOŚĆ AAC / PRZEPŁYWNOŚĆ");gap(c,9);
-    int[] rates={96,128,192,256,320};
-    String[] names={"96 kb/s","128 kb/s","192 kb/s","256 kb/s","320 kb/s"};
-    int selected=1;for(int i=0;i<rates.length;i++)if(rates[i]==kbps())selected=i;
-    actionStrip(c,names,selected,i->{prefs.edit().putInt("rate",rates[i]).apply();showTab(5);});
-    hairline(c);micro(c,"KANAŁY");gap(c,9);
-    actionStrip(c,new String[]{"MONO","STEREO"},0,i->{
-      if(i==1)toast("Ta wersja zapisuje jeden kanał — mono.");
-    });
-    gap(c,12);micro(c,"WAV: nieskompresowany PCM 16-bit. AAC: jakość zależy od przepływności.");
-    gap(page,10);block(page,"‹   REJESTRATOR",false,()->showTab(0));
   }
   private void start(){
     if(RecordingService.running || RecordingService.processing){recordingActionPending=false;toast("Nagranie jest w toku lub trwa zapis pliku");return;}
@@ -373,7 +389,7 @@ public final class MainActivity extends Activity {
   private void startMic(){
     Intent s=new Intent(this,RecordingService.class).setAction(RecordingService.START);
     s.putExtra("source","microphone");
-    s.putExtra("format",fmt());s.putExtra("rate",kbps());s.putExtra("hz",hz());
+    s.putExtra("format",fmt());s.putExtra("rate",kbps());s.putExtra("hz",hz());s.putExtra("channels",channels());
     startForegroundService(s);ui.postDelayed(this::updateNow,450);
   }
   @Override protected void onActivityResult(int req,int result,Intent data){
@@ -386,7 +402,7 @@ public final class MainActivity extends Activity {
       Intent s=new Intent(this,RecordingService.class).setAction(RecordingService.START);
       s.putExtra("source",source()==3?"btmix":source()==2?"mix":"internal");s.putExtra("projectionCode",result);
       s.putExtra("projectionData",data);
-      s.putExtra("format",fmt());s.putExtra("rate",kbps());s.putExtra("hz",hz());
+      s.putExtra("format",fmt());s.putExtra("rate",kbps());s.putExtra("hz",hz());s.putExtra("channels",channels());
       startForegroundService(s);
       ui.postDelayed(this::updateNow,450);
     }
@@ -636,17 +652,11 @@ public final class MainActivity extends Activity {
     LinearLayout theme=card(page);title(theme,"WYGLĄD");
     micro(theme,"Motyw AMOLED Black / Cyberpunk");
     gap(theme,12);micro(theme,"Neonowe logo i czarne tło na wszystkich ekranach.");
-    LinearLayout audio=card(page);title(audio,"KONFIGURACJA NAGRYWANIA");
-    micro(audio,"Źródło: "+sourceName());gap(audio,7);
-    addLabel(audio,fmt()+"  ·  "+kbps()+" kb/s  ·  "+hz()+" Hz  ·  MONO",14,WHITE,true);
-    gap(audio,10);block(audio,"ŹRÓDŁO DŹWIĘKU",false,()->showTab(3));
-    block(audio,"SZYBKIE USTAWIENIA",false,()->showTab(4));
-    block(audio,"JAKOŚĆ NAGRYWANIA",false,()->showTab(5));
     LinearLayout storage=card(page);title(storage,"NAGRANIA");
     micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(2));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"AudioRelay Grabber 1.9.8  •  n2s");
+    micro(about,"AudioRelay Grabber 1.9.9  •  n2s");
     micro(about,"Android: "+Build.VERSION.RELEASE+". Obsługa przechwytywania wewnętrznego od Androida 10.");
   }
   private void diagnosticPage(){
@@ -654,7 +664,7 @@ public final class MainActivity extends Activity {
     LinearLayout c=card(page);title(c,"URZĄDZENIE");
     item(c,"MODEL",Build.MANUFACTURER+" "+Build.MODEL);
     item(c,"ANDROID",Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
-    item(c,"WERSJA","AudioRelay Grabber 1.9.8");
+    item(c,"WERSJA","AudioRelay Grabber 1.9.9");
     item(c,"UPRAWNIENIE MIKROFONU",checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED?"PRZYZNANE":"BRAK");
     item(c,"KATALOG NAGRAŃ",dir().getAbsolutePath());
     item(c,"WOLNE MIEJSCE",String.format(Locale.US,"%.2f GB",dir().getUsableSpace()/1073741824f));
