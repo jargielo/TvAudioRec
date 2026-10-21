@@ -34,7 +34,7 @@ jobs:
               assert bitmap and len(launcher)>=5,(bitmap,launcher)
               assert not any(p.endswith('grabber_cyberpunk.xml') for p in paths)
               assert not any(p.endswith('mipmap-anydpi-v26/ic_launcher.xml') for p in paths)
-              assert z.read(bitmap[0]).startswith(b'\\x89PNG\\r\\n\\x1a\\n')
+              assert z.read(bitmap[0])[:8] == bytes([137,80,78,71,13,10,26,10])
               print('Verified raster asset',bitmap,'and launcher images',launcher)
           PY
       - name: Rename APK
