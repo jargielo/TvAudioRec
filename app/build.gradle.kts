@@ -3,11 +3,11 @@ android {
  namespace = "pl.n2s.grabberpie"
  compileSdk = 34
  defaultConfig {
-   applicationId = "pl.n2s.grabberpie.cyber195"
+   applicationId = "pl.n2s.grabberpie.cyber196"
    minSdk = 28
    targetSdk = 28
-   versionCode = 195
-   versionName = "1.9.5"
+   versionCode = 196
+   versionName = "1.9.6"
  }
  compileOptions {
    sourceCompatibility = JavaVersion.VERSION_17

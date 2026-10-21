@@ -6,6 +6,8 @@ import android.content.*;
 import android.content.pm.PackageManager;
 import android.media.*;
 import android.os.*;
+import android.media.projection.MediaProjection;
+import android.media.projection.MediaProjectionManager;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -17,6 +19,7 @@ public final class RecordingService extends Service {
   public static volatile int level=0;
   public static volatile String lastError="";
   private static volatile RecordingService instance;
+  private MediaProjection projection;
   private MediaRecorder recorder;
   private AudioRecord audio;
   private Thread worker;
@@ -35,8 +38,11 @@ public final class RecordingService extends Service {
     nm.createNotificationChannel(new NotificationChannel("rec","Grabber · Nagrywanie",NotificationManager.IMPORTANCE_LOW));
     Intent open=new Intent(this,MainActivity.class);
     PendingIntent pi=PendingIntent.getActivity(this,5,open,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
-    startForeground(47,new Notification.Builder(this,"rec").setSmallIcon(android.R.drawable.ic_btn_speak_now)
-      .setContentTitle("AudioRelay Grabber").setContentText("Nagrywanie z mikrofonu").setOngoing(true).setContentIntent(pi).build());
+    Notification recordingNote=new Notification.Builder(this,"rec").setSmallIcon(android.R.drawable.ic_btn_speak_now)
+      .setContentTitle("AudioRelay Grabber").setContentText("Trwa nagrywanie dźwięku").setOngoing(true).setContentIntent(pi).build();
+    if(Build.VERSION.SDK_INT>=29 && "internal".equals(intent.getStringExtra("source")))
+      startForeground(47,recordingNote,android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
+    else startForeground(47,recordingNote);
     try{
       PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);
       lock=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"grabberpie:record");
@@ -50,7 +56,7 @@ public final class RecordingService extends Service {
       if(!dir.exists()&&!dir.mkdirs())throw new IOException("Brak folderu Music");
       file=new File(dir,"Grabber_"+new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss",Locale.US).format(new Date())+
         ("WAV".equals(format)?".wav":".m4a"));
-      if("WAV".equals(format)) startWav(hz);
+      if("WAV".equals(format) || "internal".equals(intent.getStringExtra("source"))) startWav(hz,intent);
       else startM4a(hz,rate);
       startedAt=System.currentTimeMillis();running=true;lastError="";
     }catch(Exception ex){
@@ -67,12 +73,35 @@ public final class RecordingService extends Service {
     recorder.setAudioEncodingBitRate(bitrate);recorder.setOutputFile(file.getAbsolutePath());
     recorder.prepare();recorder.start();
   }
-  private void startWav(int sampleRate)throws Exception{
+  private void startWav(int sampleRate,Intent intent)throws Exception{
     final int sr=sampleRate;
     int min=AudioRecord.getMinBufferSize(sr,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT);
     if(min<0)throw new IOException("Nieobsługiwana częstotliwość: "+sr);
-    audio=new AudioRecord(MediaRecorder.AudioSource.MIC,sr,AudioFormat.CHANNEL_IN_MONO,
-      AudioFormat.ENCODING_PCM_16BIT,Math.max(min*4,8192));
+    if("internal".equals(intent.getStringExtra("source"))){
+      if(Build.VERSION.SDK_INT<29)throw new IOException("Android 10 jest wymagany do nagrywania wewnętrznego");
+      Intent token=intent.getParcelableExtra("projectionData");
+      if(token==null)throw new IOException("Brak uprawnienia MediaProjection");
+      MediaProjectionManager mgr=(MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE);
+      projection=mgr.getMediaProjection(intent.getIntExtra("projectionCode",0),token);
+      projection.registerCallback(new MediaProjection.Callback(){
+        @Override public void onStop(){
+          if(running)new Handler(Looper.getMainLooper()).post(()->{
+            if(running){finish();stopSelf();}
+          });
+        }
+      },new Handler(Looper.getMainLooper()));
+      AudioPlaybackCaptureConfiguration cfg=new AudioPlaybackCaptureConfiguration.Builder(projection)
+        .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+        .addMatchingUsage(AudioAttributes.USAGE_GAME)
+        .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN).build();
+      AudioFormat format=new AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+        .setSampleRate(sr).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build();
+      audio=new AudioRecord.Builder().setAudioPlaybackCaptureConfig(cfg)
+        .setAudioFormat(format).setBufferSizeInBytes(Math.max(min*4,8192)).build();
+    }else{
+      audio=new AudioRecord(MediaRecorder.AudioSource.MIC,sr,AudioFormat.CHANNEL_IN_MONO,
+        AudioFormat.ENCODING_PCM_16BIT,Math.max(min*4,8192));
+    }
     if(audio.getState()!=AudioRecord.STATE_INITIALIZED)throw new IOException("Nie można otworzyć mikrofonu.");
     audio.startRecording();wavActive=true;
     worker=new Thread(()->{
@@ -101,6 +130,7 @@ public final class RecordingService extends Service {
     if(audio!=null){try{audio.stop();}catch(Exception ignored){}}
     if(worker!=null){try{worker.join(2000);}catch(InterruptedException e){Thread.currentThread().interrupt();}worker=null;}
     if(audio!=null){audio.release();audio=null;}
+    if(projection!=null){MediaProjection p=projection;projection=null;p.stop();}
     if(lock!=null){if(lock.isHeld())lock.release();lock=null;}
     stopForeground(true);
   }

@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 S=1024
 CX=CY=S//2
-R=330
+R=395
 base=Image.new("RGBA",(S,S),(0,0,0,255))
 
 def glow_ring(width,opacity,blur,color=(255,18,54)):
@@ -21,8 +21,8 @@ for width,opacity,blur in [(60,76,43),(43,100,26),(19,125,13),(8,120,7)]:
 
 line=Image.new("RGBA",(S,S),(0,0,0,0))
 d=ImageDraw.Draw(line)
-d.ellipse((CX-R,CY-R,CX+R,CY+R),outline=(255,34,63,255),width=10)
-d.ellipse((CX-R+3,CY-R+3,CX+R-3,CY+R-3),outline=(255,243,243,255),width=7)
+d.ellipse((CX-R,CY-R,CX+R,CY+R),outline=(255,34,63,255),width=17)
+d.ellipse((CX-R+3,CY-R+3,CX+R-3,CY+R-3),outline=(255,243,243,255),width=11)
 base=Image.alpha_composite(base,line)
 
 arc=Image.new("RGBA",(S,S),(0,0,0,0))
@@ -36,7 +36,7 @@ for radius,color in [(92,(255,10,42,37)),(78,(255,8,40,55)),(62,(255,14,42,77))]
     n.ellipse((X-radius,Y-radius,X+radius,Y+radius),fill=color)
 base=Image.alpha_composite(base,node.filter(ImageFilter.GaussianBlur(20)))
 sharp=Image.new("RGBA",(S,S),(0,0,0,0))
-ImageDraw.Draw(sharp).ellipse((X-65,Y-65,X+65,Y+65),fill=(252,7,44,255),
+ImageDraw.Draw(sharp).ellipse((X-82,Y-82,X+82,Y+82),fill=(252,7,44,255),
                               outline=(255,237,237,255),width=7)
 base=Image.alpha_composite(base,sharp)
 
