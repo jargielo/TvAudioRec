@@ -16,7 +16,7 @@ public final class RecordingService extends Service {
   public static volatile long startedAt=0;
   public static volatile int level=0;
   public static volatile String lastError="";
-  private MediaRecorder recorder;
+  private static volatile RecordingService instance;\n  private MediaRecorder recorder;
   private AudioRecord audio;
   private Thread worker;
   private PowerManager.WakeLock lock;
@@ -27,7 +27,7 @@ public final class RecordingService extends Service {
   @Override public int onStartCommand(Intent intent,int flags,int startId){
     if(intent==null)return START_NOT_STICKY;
     if(STOP.equals(intent.getAction())){finish();stopSelf();return START_NOT_STICKY;}
-    if(!START.equals(intent.getAction())||running)return START_NOT_STICKY;
+    if(!START.equals(intent.getAction())||running)return START_NOT_STICKY;\n    instance=this;
     if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){lastError="Brak zgody na mikrofon";stopSelf();return START_NOT_STICKY;}
     NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
     nm.createNotificationChannel(new NotificationChannel("rec","Grabber · Nagrywanie",NotificationManager.IMPORTANCE_LOW));
@@ -80,7 +80,7 @@ public final class RecordingService extends Service {
         while(wavActive){
           int n=audio.read(b,0,b.length);
           if(n>0){out.write(b,0,n);total+=n;level=amplitude(b,n);}
-          else if(n<0){lastError="Nie udało się odczytać mikrofonu ("+n+")";break;}
+          else if(n<0){if(wavActive)lastError="Nie udało się odczytać mikrofonu ("+n+")";break;}
         }
         out.seek(0);out.write(WaveHelper.header(total,sr,1));
       }catch(Exception e){lastError="Błąd WAV: "+e.getMessage();}
@@ -102,5 +102,5 @@ public final class RecordingService extends Service {
     stopForeground(true);
   }
   @Override public void onDestroy(){finish();super.onDestroy();}
-  public static int reportedLevel(){return level;}
+  public static int reportedLevel(){\n    RecordingService s=instance;\n    if(s!=null && running && s.recorder!=null){try{return s.recorder.getMaxAmplitude();}catch(Exception ignored){}}\n    return level;\n  }
 }
