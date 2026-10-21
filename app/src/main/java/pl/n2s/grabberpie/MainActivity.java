@@ -127,7 +127,7 @@ public final class MainActivity extends Activity {
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  ANDROID 9 PIE  •  v1.9.4",10,MUTED,false);
+    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  ANDROID 9 PIE  •  v1.9.5",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,10);
     View divider=new View(this);divider.setBackgroundColor(LINE);
@@ -184,7 +184,7 @@ public final class MainActivity extends Activity {
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("AudioRelay Grabber  •  n2s\nAndroid 9 Pie  •  v1.9.4",12,MUTED,false);
+    TextView foot=label("AudioRelay Grabber  •  n2s\nAndroid 9 Pie  •  v1.9.5",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -469,7 +469,7 @@ public final class MainActivity extends Activity {
     LinearLayout storage=card(page);title(storage,"ZAPIS NAGRAŃ");micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(1));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"AudioRelay Grabber 1.9.4  •  n2s  •  Android 9 Pie");
+    micro(about,"AudioRelay Grabber 1.9.5  •  n2s  •  Android 9 Pie");
     gap(about,8);micro(about,"Wersja przeniesiona dla Huawei P20 Lite, z pełnym interfejsem rejestratora. Nagrywanie wewnętrzne aplikacji nie jest obsługiwane przez Android 9.");
   }
   private void diagnosticPage(){

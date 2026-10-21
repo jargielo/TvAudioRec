@@ -1,9 +1,9 @@
-# AudioRelay Grabber 1.9.4 — Android 9 Pie
-
-Full AMOLED Black UI with cyberpunk icon in Android launcher and application. The upper-right three-dot button opens a left sliding navigation drawer. All five pages are in the drawer; the old horizontal tab bar is removed.
-
-Pages: Nagrywanie, Moje nagrania, Odtwarzacz, Ustawienia, Diagnostyka.
-
-Huawei P20 Lite ANE-LX1, EMUI 9.1 / Android 9 (API 28). Supports MIC recording in M4A / WAV. Internal audio option stays visible but displays an informative message (AudioPlaybackCapture requires Android 10).
-
-Before uninstalling an old version, export recordings from its application-specific music storage. Debug signing keys may differ between GitHub builds; the update may need reinstallation.
+# AudioRelay Grabber 1.9.5 — Cyberpunk raster icon (Android 9 Pie)
+- **Fix verified at packaging:** bitmap PNG for launcher and in-app logo, rendered from the neon circle visual on a completely opaque black background.
+- Old white-outline vector assets and the Android adaptive icon XML are deleted so EMUI 9 cannot select them as fallbacks.
+- Includes mipmap-mdpi through mipmap-xxxhdpi launcher PNG assets.
+- User interface: a left-side sliding menu accessible via the three vertical dots; pages: Recording, My recordings, Player, Settings, Diagnostics.
+- Internal recording source remains visible but unsupported on Android 9.
+- Huawei P20 Lite / EMUI 9.1; minSdk 28; Android 9 microphone M4A/WAV recording.
+- **Separate app ID for this build:** pl.n2s.grabberpie.cyber195. This avoids Android debug-key signature mismatch with earlier builds and prevents accidental overwriting of prior recordings. Earlier recordings can be imported with the file picker.
+- Product display name **Grabber Cyberpunk** so it is easily distinguished from older versions.

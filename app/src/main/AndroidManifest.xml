@@ -3,7 +3,7 @@
  <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
  <uses-permission android:name="android.permission.WAKE_LOCK"/>
  <uses-feature android:name="android.hardware.microphone" android:required="true"/>
- <application android:label="AudioRelay Grabber" android:theme="@android:style/Theme.Material.NoActionBar" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:allowBackup="false" android:usesCleartextTraffic="false">
+ <application android:label="Grabber Cyberpunk" android:theme="@android:style/Theme.Material.NoActionBar" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:allowBackup="false" android:usesCleartextTraffic="false">
    <activity android:name=".MainActivity" android:windowSoftInputMode="adjustResize" android:exported="true">
      <intent-filter>
        <action android:name="android.intent.action.MAIN"/>
@@ -11,6 +11,6 @@
      </intent-filter>
    </activity>
    <service android:name=".RecordingService" android:exported="false"/>
-   <provider android:name=".ShareProvider" android:authorities="pl.n2s.grabberpie.file" android:exported="false" android:grantUriPermissions="true"/>
+   <provider android:name=".ShareProvider" android:authorities="pl.n2s.grabberpie.cyber195.file" android:exported="false" android:grantUriPermissions="true"/>
  </application>
 </manifest>
