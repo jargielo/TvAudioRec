@@ -1,0 +1,27 @@
+name: Build AudioRelay Grabber Android 9
+on:
+  push:
+    branches: [grabber-android9-pie]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Build APK for Android Pie API 28
+        run: gradle --no-daemon --stacktrace assembleDebug
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk AudioRelay-Grabber-v1.9.2-Huawei-P20-Lite-Android9.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AudioRelay-Grabber-v1.9.2-Android9-Pie
+          path: AudioRelay-Grabber-v1.9.2-Huawei-P20-Lite-Android9.apk
+          if-no-files-found: error
