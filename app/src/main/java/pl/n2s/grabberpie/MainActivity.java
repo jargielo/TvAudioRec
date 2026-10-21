@@ -35,13 +35,15 @@ public final class MainActivity extends Activity {
   private static final String[] TABS={"NAGRYWANIE","MOJE NAGRANIA","ODTWARZACZ","USTAWIENIA","DIAGNOSTYKA"};
   private final Handler ui=new Handler();
   private final Runnable tick=new Runnable(){ @Override public void run(){ updateNow();ui.postDelayed(this,300); } };
-  private LinearLayout root, nav, page, header;
+  private LinearLayout root, page, header, drawerPanel;
+  private FrameLayout outer, drawerOverlay;
+  private boolean drawerOpen=false;
   private TextView state, time, fileCount, playerLabel;
   private Meter meter;
   private SeekBar progress;
   private MediaPlayer player;
   private File currentFile;
-  private final List<TextView> tabText=new ArrayList<>();
+
   private final List<File> items=new ArrayList<>();
   private int tab=0;
   private int sort=0;
@@ -102,37 +104,113 @@ public final class MainActivity extends Activity {
     showTab(tab);ui.post(tick);
   }
   private void buildShell(){
-    root=vertical();root.setBackgroundColor(BLACK);setContentView(root);
-    header=vertical();header.setPadding(dp(18),dp(16),dp(18),dp(15));root.addView(header);
+    outer=new FrameLayout(this);
+    outer.setBackgroundColor(BLACK);
+    setContentView(outer);
+    root=vertical();root.setBackgroundColor(BLACK);
+    outer.addView(root,new FrameLayout.LayoutParams(-1,-1));
+    header=vertical();header.setPadding(dp(17),dp(15),dp(12),dp(12));
+    root.addView(header,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout branding=horizontal();header.addView(branding);
-    Ring logo=new Ring(this);LinearLayout.LayoutParams ir=new LinearLayout.LayoutParams(dp(72),dp(72));branding.addView(logo,ir);
-    LinearLayout words=vertical();words.setPadding(dp(10),0,0,0);
+    ImageView logo=new ImageView(this);
+    logo.setImageResource(R.drawable.grabber_cyberpunk);
+    logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    branding.addView(logo,new LinearLayout.LayoutParams(dp(62),dp(62)));
+    LinearLayout words=vertical();words.setPadding(dp(7),0,0,0);
     branding.addView(words,new LinearLayout.LayoutParams(0,-2,1));
-    TextView a=addLabel(words,"AudioRelay",29,WHITE,false);a.setTypeface(thin());a.setIncludeFontPadding(false);
-    TextView g=addLabel(words,"Grabber",29,WHITE,false);g.setTypeface(thin());g.setIncludeFontPadding(false);
-    TextView rev=addLabel(header,"AMOLED BLACK  •  ANDROID 9 PIE  •  v1.9.3",10,MUTED,false);rev.setGravity(Gravity.END);rev.setLetterSpacing(.08f);
-    gap(header,12);
-    HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);
-    nav=horizontal();nav.setPadding(dp(11),dp(7),dp(11),dp(9));scroll.addView(nav);
-    root.addView(scroll,new LinearLayout.LayoutParams(-1,dp(58)));
-    View divider=new View(this);divider.setBackgroundColor(LINE);root.addView(divider,new LinearLayout.LayoutParams(-1,dp(1)));
-    for(int i=0;i<TABS.length;i++){
-      final int index=i;
-      TextView t=label(TABS[i],12,MUTED,true);t.setPadding(dp(12),dp(10),dp(12),dp(10));
-      LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,-1);p.rightMargin=dp(4);nav.addView(t,p);
-      tabText.add(t);t.setOnClickListener(v->showTab(index));
-    }
-    ScrollView body=new ScrollView(this);body.setFillViewport(true);body.setVerticalScrollBarEnabled(false);
-    page=vertical();page.setPadding(dp(17),dp(20),dp(17),dp(38));body.addView(page);
-    root.addView(body,new LinearLayout.LayoutParams(-1,0,1));
+    TextView a=addLabel(words,"AudioRelay",25,WHITE,false);
+    a.setTypeface(thin());a.setIncludeFontPadding(false);
+    TextView g=addLabel(words,"Grabber",25,WHITE,false);
+    g.setTypeface(thin());g.setIncludeFontPadding(false);
+    TextView dots=label("⋮",34,WHITE,true);
+    dots.setContentDescription("Otwórz menu");
+    dots.setGravity(Gravity.CENTER);
+    branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
+    dots.setOnClickListener(v->openDrawer());
+    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  ANDROID 9 PIE  •  v1.9.4",10,MUTED,false);
+    rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
+    gap(header,10);
+    View divider=new View(this);divider.setBackgroundColor(LINE);
+    root.addView(divider,new LinearLayout.LayoutParams(-1,dp(1)));
+    ScrollView body=new ScrollView(this);
+    body.setFillViewport(true);body.setVerticalScrollBarEnabled(false);
+    page=vertical();page.setPadding(dp(17),dp(20),dp(17),dp(38));
+    body.addView(page);root.addView(body,new LinearLayout.LayoutParams(-1,0,1));
+    buildDrawer();
     uiReady=true;
   }
-  private void showTab(int index){
-    tab=index;for(int i=0;i<tabText.size();i++){
-      TextView t=tabText.get(i);boolean on=i==index;t.setTextColor(on?RED:MUTED);
-      t.setBackground(back(on?0xff221016:BLACK,on?RED:0,11));
+  private void buildDrawer(){
+    drawerOverlay=new FrameLayout(this);
+    drawerOverlay.setVisibility(View.GONE);
+    outer.addView(drawerOverlay,new FrameLayout.LayoutParams(-1,-1));
+    View scrim=new View(this);scrim.setBackgroundColor(0xb8000000);
+    scrim.setAlpha(0f);scrim.setOnClickListener(v->closeDrawer());
+    drawerOverlay.addView(scrim,new FrameLayout.LayoutParams(-1,-1));
+    int width=Math.min(dp(330),(int)(getResources().getDisplayMetrics().widthPixels*.84f));
+    drawerPanel=vertical();
+    drawerPanel.setPadding(dp(19),dp(18),dp(19),dp(23));
+    drawerPanel.setBackground(back(0xff222124,0xff363337,26));
+    FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(width,-1,Gravity.START);
+    lp.leftMargin=dp(3);lp.topMargin=dp(3);lp.bottomMargin=dp(3);
+    drawerOverlay.addView(drawerPanel,lp);
+    LinearLayout brand=horizontal();
+    drawerPanel.addView(brand,new LinearLayout.LayoutParams(-1,dp(83)));
+    ImageView logo=new ImageView(this);
+    logo.setImageResource(R.drawable.grabber_cyberpunk);
+    logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    brand.addView(logo,new LinearLayout.LayoutParams(dp(73),dp(73)));
+    LinearLayout texts=vertical();texts.setPadding(dp(5),0,0,0);
+    brand.addView(texts,new LinearLayout.LayoutParams(0,-2,1));
+    addLabel(texts,"AudioRelay",21,WHITE,true);
+    addLabel(texts,"Grabber",19,MUTED,false);
+    gap(drawerPanel,27);
+    String[] names={"Nagrywanie","Moje nagrania","Odtwarzacz","Ustawienia","Diagnostyka"};
+    String[] glyphs={"●","▢","▷","⚙","⌁"};
+    for(int i=0;i<names.length;i++){
+      if(i==3) {gap(drawerPanel,9);hairline(drawerPanel);gap(drawerPanel,8);}
+      final int idx=i;
+      LinearLayout row=horizontal();row.setPadding(dp(13),0,dp(12),0);
+      row.setBackground(back(i==tab?0xff41262c:0xff29282a,0,12));
+      LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(64));
+      rp.bottomMargin=dp(7);drawerPanel.addView(row,rp);
+      TextView ico=label(glyphs[i],25,i==tab?RED:WHITE,false);
+      ico.setGravity(Gravity.CENTER);
+      row.addView(ico,new LinearLayout.LayoutParams(dp(42),-1));
+      TextView name=label(names[i],17,WHITE,i==tab);
+      LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(0,-1,1);
+      np.leftMargin=dp(7);row.addView(name,np);
+      TextView arrow=label("›",27,MUTED,false);row.addView(arrow);
+      row.setOnClickListener(v->{closeDrawer();showTab(idx);});
     }
-    page.removeAllViews();state=null;time=null;meter=null;fileCount=null;playerLabel=null;progress=null;
+    View spacer=new View(this);
+    drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
+    TextView foot=label("AudioRelay Grabber  •  n2s\nAndroid 9 Pie  •  v1.9.4",12,MUTED,false);
+    foot.setGravity(Gravity.CENTER);
+    foot.setBackground(back(0xff29282a,0xff414042,18));
+    drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
+    drawerPanel.setTranslationX(-width-dp(15));
+  }
+  private void openDrawer(){
+    if(drawerOpen)return;
+    drawerOpen=true;drawerOverlay.setVisibility(View.VISIBLE);
+    View scrim=drawerOverlay.getChildAt(0);
+    scrim.animate().alpha(1f).setDuration(180).start();
+    drawerPanel.animate().translationX(0).setDuration(220).start();
+  }
+  private void closeDrawer(){
+    if(!drawerOpen)return;
+    drawerOpen=false;
+    View scrim=drawerOverlay.getChildAt(0);
+    scrim.animate().alpha(0f).setDuration(180).start();
+    int width=drawerPanel.getLayoutParams().width;
+    drawerPanel.animate().translationX(-width-dp(15)).setDuration(200)
+      .withEndAction(()->{if(!drawerOpen)drawerOverlay.setVisibility(View.GONE);}).start();
+  }
+  private void showTab(int index){
+    if(index<0 || index>=TABS.length)index=0;
+    tab=index;
+    page.removeAllViews();
+    state=null;time=null;meter=null;fileCount=null;playerLabel=null;progress=null;
     switch(index){
       case 0: recorderPage();break;
       case 1: filesPage();break;
@@ -191,7 +269,7 @@ public final class MainActivity extends Activity {
     actionStrip(quick,new String[]{"MONO","STEREO"},0,i->{
       if(i==1)toast("Dla stabilności Huawei P20 Lite używa nagrywania mono.");
     });
-    gap(page,11);block(page,"MOJE NAGRANIA  ›",false,()->showTab(1));
+
   }
   private void start(){
     if(RecordingService.running){toast("Nagrywanie już trwa");return;}
@@ -391,7 +469,7 @@ public final class MainActivity extends Activity {
     LinearLayout storage=card(page);title(storage,"ZAPIS NAGRAŃ");micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(1));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"AudioRelay Grabber 1.9.3  •  n2s  •  Android 9 Pie");
+    micro(about,"AudioRelay Grabber 1.9.4  •  n2s  •  Android 9 Pie");
     gap(about,8);micro(about,"Wersja przeniesiona dla Huawei P20 Lite, z pełnym interfejsem rejestratora. Nagrywanie wewnętrzne aplikacji nie jest obsługiwane przez Android 9.");
   }
   private void diagnosticPage(){
@@ -422,7 +500,7 @@ public final class MainActivity extends Activity {
     micro(c,left);gap(c,4);addLabel(c,right,14,WHITE,true);hairline(c);
   }
   private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
-  @Override public void onBackPressed(){if(tab!=0)showTab(0);else super.onBackPressed();}
+  @Override public void onBackPressed(){if(drawerOpen)closeDrawer();else if(tab!=0)showTab(0);else super.onBackPressed();}
   @Override protected void onDestroy(){ui.removeCallbacks(tick);stopPlayer();super.onDestroy();}
   private static final class Ring extends View{
     private final Paint paint=new Paint(3);
