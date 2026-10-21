@@ -1,0 +1,4 @@
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/grabber_black_background"/>
+    <foreground android:drawable="@drawable/grabber_cyberpunk"/>
+</adaptive-icon>
