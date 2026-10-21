@@ -438,7 +438,7 @@ public final class MainActivity extends Activity {
     private final Paint p=new Paint(3);Meter(Activity a){super(a);}
     @Override protected void onDraw(Canvas c){
       int n=49;float w=getWidth(),h=getHeight();float spacing=w/n;
-      float v=RecordingService.running?Math.min(1f,RecordingService.level/20000f):0f;
+      float v=RecordingService.running?Math.min(1f,RecordingService.reportedLevel()/20000f):0f;
       for(int i=0;i<n;i++){
         double wave=0.08+Math.abs(Math.sin(i*.31+System.currentTimeMillis()*.008))*(.15+v*.85);
         float size=(float)(wave*h*.9f);
