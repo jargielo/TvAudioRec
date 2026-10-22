@@ -1,4 +1,4 @@
-# PureCapture v2.0.0
+# PureCapture v2.0.1
 - Creator: n2s.
 - Compatible install minimum Android 9 (API 28), no declared maximum; runtime features may differ by device and Android versions.
 - Main tabs: Recorder and Player. Overflow drawer: Return to recorder, My recordings, Recording configuration, Settings, Diagnostics.
@@ -10,3 +10,8 @@
 - Source: microphone; internal; mic + internal; Bluetooth mic + internal. Android 9 supports mic only. Internal audio capture requires Android 10+ and source cooperation.
 - Mono and stereo depending on hardware capabilities.
 - Package: pl.n2s.purecapture.
+
+## Changes in v2.0.1
+- Configuration accordion automatically closes after choosing a value; the active choice is visible in the collapsed summary.
+- Return-to-recorder drawer item has neither a leading red dot nor trailing chevron.
+- Default public output is /storage/emulated/0/Music/PureCapture. Android 9 requests WRITE_EXTERNAL_STORAGE, Android 10+ uses MediaStore with RELATIVE_PATH=Music/PureCapture. A locally indexed library copy is retained for app playback, favorites and recovery if public output fails. Custom SAF folder takes precedence.

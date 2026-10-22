@@ -13,6 +13,8 @@ import com.arthenica.ffmpegkit.ReturnCode;
 import java.io.*;
 import android.net.Uri;
 import android.provider.DocumentsContract;
+import android.provider.MediaStore;
+import android.content.ContentValues;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -250,37 +252,99 @@ public final class RecordingService extends Service {
       processing=false;finishService();
     }
   }
+  private static final String DEFAULT_FOLDER="Music/PureCapture/";
+  private static String mimeType(String ext){
+    switch(ext.toLowerCase(Locale.US)){
+      case "wav":return "audio/wav";
+      case "mp3":return "audio/mpeg";
+      case "m4a":return "audio/mp4";
+      case "flac":return "audio/flac";
+      case "ogg":return "audio/ogg";
+      case "aac":return "audio/aac";
+      case "3gp":return "audio/3gpp";
+      default:return "audio/*";
+    }
+  }
+  private static void copyBytes(InputStream input,OutputStream output)throws IOException{
+    byte[] buffer=new byte[32768];int read;
+    while((read=input.read(buffer))!=-1)output.write(buffer,0,read);
+    output.flush();
+  }
+  private void copyToDefaultFolder(File recording)throws Exception{
+    if(Build.VERSION.SDK_INT>=29){
+      ContentValues values=new ContentValues();
+      values.put(MediaStore.Audio.Media.DISPLAY_NAME,recording.getName());
+      String name=recording.getName();
+      values.put(MediaStore.Audio.Media.MIME_TYPE,mimeType(name.substring(name.lastIndexOf('.')+1)));
+      values.put(MediaStore.Audio.Media.RELATIVE_PATH,DEFAULT_FOLDER);
+      values.put(MediaStore.Audio.Media.IS_PENDING,1);
+      Uri uri=getContentResolver().insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,values);
+      if(uri==null)throw new IOException("MediaStore nie utworzył pliku audio");
+      boolean completed=false;
+      try(InputStream in=new FileInputStream(recording);
+          OutputStream out=getContentResolver().openOutputStream(uri,"w")){
+        if(out==null)throw new IOException("MediaStore nie udostępnił pliku do zapisu");
+        copyBytes(in,out);
+        completed=true;
+      }finally{
+        if(completed){
+          ContentValues done=new ContentValues();
+          done.put(MediaStore.Audio.Media.IS_PENDING,0);
+          getContentResolver().update(uri,done,null,null);
+        }else{
+          getContentResolver().delete(uri,null,null);
+        }
+      }
+    }else{
+      if(checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)!=PackageManager.PERMISSION_GRANTED)
+        throw new SecurityException("Brak uprawnienia pamięci na Androidzie 9");
+      File music=android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC);
+      File folder=new File(music,"PureCapture");
+      if(!folder.exists()&&!folder.mkdirs())
+        throw new IOException("Nie można utworzyć "+folder.getAbsolutePath());
+      File outputFile=new File(folder,recording.getName());
+      try(InputStream in=new FileInputStream(recording);
+          OutputStream out=new FileOutputStream(outputFile)){
+        copyBytes(in,out);
+      }catch(Exception ex){
+        outputFile.delete();
+        throw ex;
+      }
+      // Refresh the media index on older devices so recordings appear in Music.
+      android.media.MediaScannerConnection.scanFile(this,
+        new String[]{outputFile.getAbsolutePath()},null,null);
+    }
+  }
   private void copyToSelectedFolder(File recording){
+    if(!recording.isFile())return;
     String saved=getSharedPreferences("grabber",MODE_PRIVATE).getString("save_tree_uri","");
-    if(saved.isEmpty() || !recording.isFile())return;
+    if(saved.isEmpty()){
+      try{
+        copyToDefaultFolder(recording);
+      }catch(Exception e){
+        lastError="Zapisano w pamięci aplikacji, ale nie w Music/PureCapture: "+e.getMessage();
+      }
+      return;
+    }
     Uri targetUri=null;
     try{
       Uri tree=Uri.parse(saved);
       String treeId=DocumentsContract.getTreeDocumentId(tree);
       Uri parent=DocumentsContract.buildDocumentUriUsingTree(tree,treeId);
       String name=recording.getName();
-      String ext=name.substring(name.lastIndexOf('.')+1).toLowerCase(Locale.US);
-      String mime="audio/*";
-      if(ext.equals("wav"))mime="audio/wav";
-      else if(ext.equals("mp3"))mime="audio/mpeg";
-      else if(ext.equals("m4a"))mime="audio/mp4";
-      else if(ext.equals("flac"))mime="audio/flac";
-      else if(ext.equals("ogg"))mime="audio/ogg";
-      else if(ext.equals("aac"))mime="audio/aac";
-      else if(ext.equals("3gp"))mime="audio/3gpp";
-      targetUri=DocumentsContract.createDocument(getContentResolver(),parent,mime,name);
-      if(targetUri==null)throw new IOException("Brak dostępu do wskazanego katalogu");
+      targetUri=DocumentsContract.createDocument(getContentResolver(),parent,
+        mimeType(name.substring(name.lastIndexOf('.')+1)),name);
+      if(targetUri==null)throw new IOException("Brak dostępu do wskazanego folderu");
       try(InputStream input=new FileInputStream(recording);
           OutputStream output=getContentResolver().openOutputStream(targetUri,"w")){
         if(output==null)throw new IOException("Nie można otworzyć pliku docelowego");
-        byte[] buffer=new byte[32768];int read;
-        while((read=input.read(buffer))!=-1)output.write(buffer,0,read);
-        output.flush();
+        copyBytes(input,output);
       }
-      // Keep the local copy indexed in My Recordings while also saving to the selected folder.
     }catch(Exception ex){
-      if(targetUri!=null)try{DocumentsContract.deleteDocument(getContentResolver(),targetUri);}catch(Exception ignored){}
-      lastError="Zapisano lokalnie. Kopia w wybranym folderze nieudana: "+ex.getMessage();
+      if(targetUri!=null){
+        try{DocumentsContract.deleteDocument(getContentResolver(),targetUri);}catch(Exception ignored){}
+      }
+      lastError="Zapisano w pamięci aplikacji. Kopia w wybranym folderze nieudana: "+ex.getMessage();
     }
   }
   private String encodingParams(){

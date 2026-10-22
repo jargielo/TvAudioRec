@@ -131,7 +131,7 @@ public final class MainActivity extends Activity {
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  v2.0.0",10,MUTED,false);
+    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  v2.0.1",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -171,7 +171,7 @@ public final class MainActivity extends Activity {
     addLabel(texts,"PureCapture",21,WHITE,true);
     addLabel(texts,"n2s",16,MUTED,false);
     gap(drawerPanel,27);
-    String[] names={"← Powrót do rejestratora","Moje nagrania","Konfiguracja nagrania","Ustawienia","Diagnostyka"};
+    String[] names={"Powrót do rejestratora","Moje nagrania","Konfiguracja nagrania","Ustawienia","Diagnostyka"};
     String[] glyphs={"●","▢","☷","⚙","⌁"};
     int[] destinations={0,2,3,6,7};
     for(int i=0;i<names.length;i++){
@@ -181,18 +181,23 @@ public final class MainActivity extends Activity {
       row.setBackground(back(0xff29282a,0,12));
       LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(64));
       rp.bottomMargin=dp(7);drawerPanel.addView(row,rp);
-      TextView ico=label(glyphs[i],25,idx==tab?RED:WHITE,false);
-      ico.setGravity(Gravity.CENTER);
-      row.addView(ico,new LinearLayout.LayoutParams(dp(42),-1));
-      TextView name=label(names[i],17,WHITE,idx==tab);
+      if(i!=0){
+        TextView ico=label(glyphs[i],25,WHITE,false);
+        ico.setGravity(Gravity.CENTER);
+        row.addView(ico,new LinearLayout.LayoutParams(dp(42),-1));
+      }
+      TextView name=label(names[i],17,WHITE,false);
       LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(0,-1,1);
-      np.leftMargin=dp(7);row.addView(name,np);
-      TextView arrow=label("›",27,MUTED,false);row.addView(arrow);
+      np.leftMargin=dp(i==0?10:7);row.addView(name,np);
+      if(i!=0){
+        TextView arrow=label("›",27,MUTED,false);
+        row.addView(arrow);
+      }
       row.setOnClickListener(v->{closeDrawer();showTab(idx);});
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.0",12,MUTED,false);
+    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.1",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -314,13 +319,14 @@ public final class MainActivity extends Activity {
     option.setOnClickListener(v->{
       int y=bodyScroll.getScrollY();
       callback.run();
+      expandedConfig=-1;
       showTab(3);
       bodyScroll.post(()->bodyScroll.scrollTo(0,y));
     });
   }
   private String saveFolderLabel(){
     String value=prefs.getString("save_tree_uri","");
-    if(value.isEmpty())return "Domyślny folder aplikacji";
+    if(value.isEmpty())return "/storage/emulated/0/Music/PureCapture";
     try{
       String id=DocumentsContract.getTreeDocumentId(Uri.parse(value));
       return Uri.decode(id);
@@ -386,11 +392,12 @@ public final class MainActivity extends Activity {
     }
     LinearLayout location=configCard(5,"Miejsce zapisu plików",saveFolderLabel());
     if(expandedConfig==5){
-      micro(location,"Wybierz folder na urządzeniu lub w dostępnym dostawcy pamięci. Zapis nagrań będzie także widoczny w bibliotece aplikacji.");
+      micro(location,"Domyślny folder: /storage/emulated/0/Music/PureCapture. Możesz wskazać inny folder; nagrania pozostają także dostępne w bibliotece aplikacji.");
       gap(location,11);
       block(location,"WYBIERZ FOLDER ZAPISU",true,this::chooseSaveFolder);
       block(location,"PRZYWRÓĆ DOMYŚLNY FOLDER",false,()->{
         prefs.edit().remove("save_tree_uri").apply();
+        expandedConfig=-1;
         showTab(3);
       });
       gap(location,9);
@@ -400,6 +407,13 @@ public final class MainActivity extends Activity {
   }
   private void start(){
     if(RecordingService.running || RecordingService.processing){recordingActionPending=false;toast("Nagranie jest w toku lub trwa zapis pliku");return;}
+    if(Build.VERSION.SDK_INT<=28 &&
+       prefs.getString("save_tree_uri","").isEmpty() &&
+       checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)!=PackageManager.PERMISSION_GRANTED){
+      recordingActionPending=false;
+      requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},44);
+      return;
+    }
     if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){
       recordingActionPending=false;
       requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},42);return;
@@ -478,6 +492,10 @@ public final class MainActivity extends Activity {
     if(r==43){
       if(x.length>0&&x[0]==PackageManager.PERMISSION_GRANTED)start();
       else toast("Nagrywanie przez Bluetooth wymaga uprawnienia do urządzeń Bluetooth");
+    }
+    if(r==44){
+      if(x.length>0&&x[0]==PackageManager.PERMISSION_GRANTED)start();
+      else toast("Aby zapisywać w Music/PureCapture na Androidzie 9, nadaj uprawnienie pamięci.");
     }
   }
   private void updateNow(){
@@ -723,7 +741,7 @@ public final class MainActivity extends Activity {
     micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(2));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"PureCapture 2.0.0  •  n2s");
+    micro(about,"PureCapture 2.0.1  •  n2s");
     micro(about,"Android: "+Build.VERSION.RELEASE+". Obsługa przechwytywania wewnętrznego od Androida 10.");
   }
   private void diagnosticPage(){
@@ -731,7 +749,7 @@ public final class MainActivity extends Activity {
     LinearLayout c=card(page);title(c,"URZĄDZENIE");
     item(c,"MODEL",Build.MANUFACTURER+" "+Build.MODEL);
     item(c,"ANDROID",Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
-    item(c,"WERSJA","PureCapture 2.0.0");
+    item(c,"WERSJA","PureCapture 2.0.1");
     item(c,"UPRAWNIENIE MIKROFONU",checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED?"PRZYZNANE":"BRAK");
     item(c,"KATALOG NAGRAŃ",dir().getAbsolutePath());
     item(c,"WOLNE MIEJSCE",String.format(Locale.US,"%.2f GB",dir().getUsableSpace()/1073741824f));
