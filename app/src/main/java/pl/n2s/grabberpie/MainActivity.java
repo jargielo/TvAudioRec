@@ -110,6 +110,7 @@ public final class MainActivity extends Activity {
   private volatile float playbackLevel=0f;
   private Meter playerMeter;
   private File currentFile;
+  private long handledSavedAt=0L;
 
   private final List<File> items=new ArrayList<>();
   private int tab=0;
@@ -166,6 +167,7 @@ public final class MainActivity extends Activity {
     getWindow().setStatusBarColor(BLACK);getWindow().setNavigationBarColor(BLACK);
     getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     prefs=getSharedPreferences("grabber",MODE_PRIVATE);
+    restoreLastSavedRecording();
     applyPalette();
     Intent launched=getIntent();
     if(launched!=null && launched.hasExtra("tab")) tab=launched.getIntExtra("tab",0);
@@ -194,7 +196,7 @@ public final class MainActivity extends Activity {
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.2",10,MUTED,false);
+    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.3",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -261,7 +263,7 @@ public final class MainActivity extends Activity {
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.2",12,MUTED,false);
+    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.3",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -286,6 +288,9 @@ public final class MainActivity extends Activity {
   private void showTab(int index){
     if(index<0 || index>=TABS.length)index=0;
     tab=index;
+    if(index==1 && (currentFile==null || !isCompletedRecording(currentFile))){
+      restoreLastSavedRecording();
+    }
     homeTabs.removeAllViews();
     homeTabs.setVisibility(index<2?View.VISIBLE:View.GONE);
     if(index<2){
@@ -315,6 +320,48 @@ public final class MainActivity extends Activity {
     updateNow();
   }
   private File dir(){File d=getExternalFilesDir(Environment.DIRECTORY_MUSIC);if(d==null)d=new File(getFilesDir(),"Music");if(!d.exists())d.mkdirs();return d;}
+  private boolean isCompletedRecording(File candidate){
+    if(candidate==null || !candidate.isFile() || candidate.length()<=44)return false;
+    String name=candidate.getName().toLowerCase(Locale.ROOT);
+    if(name.endsWith(".partial.wav"))return false;
+    return name.endsWith(".wav")||name.endsWith(".m4a")||name.endsWith(".mp3")||
+      name.endsWith(".aac")||name.endsWith(".ogg")||name.endsWith(".3gp")||
+      name.endsWith(".flac");
+  }
+  private File newestRecording(){
+    File[] files=dir().listFiles();
+    if(files==null)return null;
+    File latest=null;
+    for(File f:files){
+      if(isCompletedRecording(f) && (latest==null || f.lastModified()>latest.lastModified()))
+        latest=f;
+    }
+    return latest;
+  }
+  private void restoreLastSavedRecording(){
+    File remembered=null;
+    String stored=prefs.getString("last_recording_path","");
+    if(!stored.isEmpty()){
+      File candidate=new File(stored);
+      if(isCompletedRecording(candidate) && candidate.getParentFile().equals(dir()))
+        remembered=candidate;
+    }
+    if(remembered==null)remembered=newestRecording();
+    currentFile=remembered;
+    handledSavedAt=prefs.getLong("last_recording_saved_at",0L);
+  }
+  private void synchronizeSavedRecording(){
+    long time=RecordingService.lastSavedAt;
+    if(time==0L || time<=handledSavedAt)return;
+    String path=RecordingService.lastSavedPath;
+    if(path==null || path.isEmpty())return;
+    File candidate=new File(path);
+    if(!isCompletedRecording(candidate))return;
+    handledSavedAt=time;
+    if(player!=null)stopPlayer();
+    currentFile=candidate;
+    if(tab==1)showTab(1);
+  }
   private File trash(){File f=new File(dir(),".kosz");if(!f.exists())f.mkdirs();return f;}
   private boolean fav(File f){return prefs.getBoolean("fav_"+f.getAbsolutePath(),false);}
   private String fmt(){return prefs.getString("format","M4A");}
@@ -564,6 +611,11 @@ public final class MainActivity extends Activity {
   }
   private void updateNow(){
     if(!uiReady)return;
+    synchronizeSavedRecording();
+    if(tab==1 && playerLabel!=null && currentFile==null){
+      playerLabel.setText(RecordingService.processing?
+        "Trwa zapisywanie nagrania…":"Nie wybrano nagrania");
+    }
     if(state!=null) {
       state.setText(RecordingService.processing?"ZAPISYWANIE PLIKU...":
         RecordingService.running?"●  TRWA NAGRYWANIE":"GOTOWY DO NAGRYWANIA");
@@ -743,7 +795,9 @@ public final class MainActivity extends Activity {
   }
   private void playerPage(){
     LinearLayout c=card(page);
-    playerLabel=addLabel(c,currentFile==null?"Nie wybrano nagrania":currentFile.getName(),16,WHITE,true);
+    playerLabel=addLabel(c,currentFile==null?
+      (RecordingService.processing?"Trwa zapisywanie nagrania…":"Nie wybrano nagrania"):
+      currentFile.getName(),16,WHITE,true);
     playerLabel.setSingleLine(false);
     playerLabel.setMaxLines(2);
     gap(c,14);
@@ -882,7 +936,7 @@ public final class MainActivity extends Activity {
     micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(2));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"PureCapture 2.0.2  •  n2s");
+    micro(about,"PureCapture 2.0.3  •  n2s");
     micro(about,"Android: "+Build.VERSION.RELEASE+". Obsługa przechwytywania wewnętrznego od Androida 10.");
   }
   private void diagnosticPage(){
@@ -890,7 +944,7 @@ public final class MainActivity extends Activity {
     LinearLayout c=card(page);title(c,"URZĄDZENIE");
     item(c,"MODEL",Build.MANUFACTURER+" "+Build.MODEL);
     item(c,"ANDROID",Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
-    item(c,"WERSJA","PureCapture 2.0.2");
+    item(c,"WERSJA","PureCapture 2.0.3");
     item(c,"UPRAWNIENIE MIKROFONU",checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED?"PRZYZNANE":"BRAK");
     item(c,"KATALOG NAGRAŃ",dir().getAbsolutePath());
     item(c,"WOLNE MIEJSCE",String.format(Locale.US,"%.2f GB",dir().getUsableSpace()/1073741824f));
@@ -914,6 +968,21 @@ public final class MainActivity extends Activity {
   }
   private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
   @Override public void onBackPressed(){if(drawerOpen)closeDrawer();else if(tab!=0)showTab(0);else super.onBackPressed();}
+  @Override protected void onResume(){
+    super.onResume();
+    if(prefs!=null){
+      long saved=prefs.getLong("last_recording_saved_at",0L);
+      if(saved>handledSavedAt){
+        File f=new File(prefs.getString("last_recording_path",""));
+        if(isCompletedRecording(f)){
+          if(player!=null)stopPlayer();
+          currentFile=f;
+          handledSavedAt=saved;
+          if(uiReady && tab==1)showTab(1);
+        }
+      }
+    }
+  }
   @Override protected void onDestroy(){ui.removeCallbacks(tick);stopPlayer();super.onDestroy();}
   private static final class Meter extends View{
     private final MainActivity owner;

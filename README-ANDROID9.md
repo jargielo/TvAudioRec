@@ -21,3 +21,10 @@
 - Recorder meter: increased sensitivity, 90 ms redraw; flat line during silence, moving bars for measured input.
 - 3-dot navigation offers Systemowy/Dark/Light theme. Dark AMOLED defaults unchanged. Light is a true reversed UI palette. A system theme follows night-mode configuration. Neon circle and dot remain transparent in header and drawer.
 - Requires RECORD_AUDIO and MODIFY_AUDIO_SETTINGS for output Visualizer, which might still be restricted by some OEM media pipelines.
+
+
+## v2.0.3 – automatic latest recording selection
+- The recorder publishes a completed file only after WAV finalization, successful FFmpeg transcode, or WAV fallback if conversion failed.
+- The player automatically selects the newly saved recording without starting playback. On returning to the player, the filename is already displayed.
+- The last completed file path and timestamp are persisted, so a process restart restores the last recording. If it is gone, the most recent available local recording is used.
+- The recorder and player continue using the same local app library even when the recording is also copied to the public Music/PureCapture directory.

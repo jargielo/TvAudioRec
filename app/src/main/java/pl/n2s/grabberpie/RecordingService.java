@@ -24,6 +24,8 @@ public final class RecordingService extends Service {
   public static volatile long startedAt=0;
   public static volatile int level=0;
   public static volatile String lastError="";
+  public static volatile String lastSavedPath="";
+  public static volatile long lastSavedAt=0L;
   private static volatile RecordingService instance;
   private AudioRecord internalRecord, microphoneRecord;
   private MediaProjection projection;
@@ -226,7 +228,10 @@ public final class RecordingService extends Service {
     }
     if("WAV".equalsIgnoreCase(format)){
       if(!temporary.renameTo(target))lastError="Nie można zapisać WAV";
-      else copyToSelectedFolder(target);
+      else{
+        copyToSelectedFolder(target);
+        publishSavedRecording(target);
+      }
       processing=false;finishService();return;
     }
     String params=encodingParams();
@@ -237,20 +242,40 @@ public final class RecordingService extends Service {
       FFmpegKit.executeAsync(args,session->{
         if(ReturnCode.isSuccess(session.getReturnCode())&&encoded.exists()&&encoded.length()>0){
           wav.delete();lastError="";copyToSelectedFolder(encoded);
+          publishSavedRecording(encoded);
         }else{
           if(encoded.exists())encoded.delete();
           File rescued=new File(wav.getParent(),wav.getName().replace(".partial.wav",".wav"));
           if(!wav.renameTo(rescued))lastError="Błąd kodowania "+format+"; plik roboczy pozostawiono: "+wav.getName();
-          else lastError="Błąd kodowania "+format+". Zapisano nagranie jako WAV.";
+          else {
+            lastError="Błąd kodowania "+format+". Zapisano nagranie jako WAV.";
+            copyToSelectedFolder(rescued);
+            publishSavedRecording(rescued);
+          }
         }
         processing=false;finishService();
       });
     }catch(Throwable e){
       lastError="Brak kodera "+format+": "+e.getMessage();
       File rescued=new File(wav.getParent(),wav.getName().replace(".partial.wav",".wav"));
-      wav.renameTo(rescued);
+      if(wav.renameTo(rescued)){
+        copyToSelectedFolder(rescued);
+        publishSavedRecording(rescued);
+      }
       processing=false;finishService();
     }
+  }
+  private void publishSavedRecording(File file){
+    if(file==null || !file.isFile() || file.length()<=44)return;
+    // Publication happens only after the WAV file is finalized or the encoder has completed.
+    String path=file.getAbsolutePath();
+    long now=System.currentTimeMillis();
+    getSharedPreferences("grabber",MODE_PRIVATE).edit()
+      .putString("last_recording_path",path)
+      .putLong("last_recording_saved_at",now)
+      .apply();
+    lastSavedPath=path;
+    lastSavedAt=now;
   }
   private static final String DEFAULT_FOLDER="Music/PureCapture/";
   private static String mimeType(String ext){
