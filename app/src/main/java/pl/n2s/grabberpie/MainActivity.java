@@ -125,7 +125,7 @@ public final class MainActivity extends Activity {
   private LinearLayout vertical(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);return l;}
   private LinearLayout horizontal(){LinearLayout l=new LinearLayout(this);l.setOrientation(0);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
   private GradientDrawable back(int fill,int stroke,int radius){
-    GradientDrawable g=new GradientDrawable();g.setColor(themedColor(fill));g.setCornerRadius(dp(radius));if(stroke!=0)g.setStroke(dp(1,themedColor(stroke));return g;
+    GradientDrawable g=new GradientDrawable();g.setColor(themedColor(fill));g.setCornerRadius(dp(radius));if(stroke!=0)g.setStroke(dp(1),themedColor(stroke));return g;
   }
   private TextView label(String value,int size,int color,boolean bold){
     TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setTextColor(color);
@@ -145,7 +145,7 @@ public final class MainActivity extends Activity {
   private void hairline(LinearLayout into){View v=new View(this);v.setBackgroundColor(LINE);LinearLayout.LayoutParams l=new LinearLayout.LayoutParams(-1,dp(1));l.topMargin=dp(12);l.bottomMargin=dp(12);into.addView(v,l);}
   private Button button(String name, boolean active){
     Button b=new Button(this);b.setText(name);b.setAllCaps(false);b.setTextSize(13);
-    b.setTypeface(medium());b.setTextColor(active?BLACK:WHITE);b.setPadding(dp(10),0,dp(10),0);
+    b.setTypeface(medium());b.setTextColor(active?0xff000000:WHITE);b.setPadding(dp(10),0,dp(10),0);
     b.setBackground(back(active?RED:CARD2,active?RED:LINE,11));return b;
   }
   private Button block(LinearLayout into,String s,boolean accent,Runnable click){
