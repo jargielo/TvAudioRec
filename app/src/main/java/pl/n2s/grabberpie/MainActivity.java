@@ -209,7 +209,7 @@ public final class MainActivity extends Activity {
     branding.addView(logo,new LinearLayout.LayoutParams(dp(62),dp(62)));
     LinearLayout words=vertical();words.setPadding(dp(7),0,0,0);
     branding.addView(words,new LinearLayout.LayoutParams(0,-2,1));
-    TextView a=addLabel(words,"PureCapture",27,WHITE,false);
+    TextView a=addLabel(words,"PureCapture TV",27,WHITE,false);
     a.setTypeface(thin());a.setIncludeFontPadding(false);
     TextView dots=label("⋮",34,WHITE,true);
     dots.setContentDescription("Otwórz menu");
@@ -253,7 +253,7 @@ public final class MainActivity extends Activity {
     brand.addView(logo,new LinearLayout.LayoutParams(dp(73),dp(73)));
     LinearLayout texts=vertical();texts.setPadding(dp(5),0,0,0);
     brand.addView(texts,new LinearLayout.LayoutParams(0,-2,1));
-    addLabel(texts,"PureCapture",21,WHITE,true);
+    addLabel(texts,"PureCapture TV",21,WHITE,true);
     addLabel(texts,"n2s",16,MUTED,false);
     gap(drawerPanel,27);
     String[] names={"Powrót do rejestratora","Moje nagrania","Konfiguracja nagrania",
@@ -288,7 +288,7 @@ public final class MainActivity extends Activity {
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("PureCapture  •  n2s\nAndroid 9+ / Android TV 12  •  v2.1.0",12,MUTED,false);
+    TextView foot=label("PureCapture TV  •  n2s\nAndroid 9+ / Android TV 12  •  v2.1.0",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
