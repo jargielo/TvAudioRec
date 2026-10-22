@@ -39,6 +39,21 @@ public final class MainActivity extends Activity {
   private int BLACK=0xff000000, CARD=0xff111111, CARD2=0xff191919,
     WHITE=0xfff4f4f4, MUTED=0xff9a9a9a, LINE=0xff343434;
   private boolean lightTheme=false;
+  private boolean isTv(){
+    return (getResources().getConfiguration().uiMode &
+      Configuration.UI_MODE_TYPE_MASK)==Configuration.UI_MODE_TYPE_TELEVISION;
+  }
+  private void tvFocus(View view){
+    if(!isTv())return;
+    view.setFocusable(true);
+    view.setFocusableInTouchMode(false);
+    final android.graphics.drawable.Drawable normal=view.getBackground();
+    view.setOnFocusChangeListener((v,focused)->{
+      v.setBackground(focused?back(CARD2,RED,12):normal);
+      v.setScaleX(focused?1.025f:1f);
+      v.setScaleY(focused?1.025f:1f);
+    });
+  }
   private void applyPalette(){
     String choice=prefs.getString("theme","dark");
     boolean systemNight=(getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
@@ -152,7 +167,7 @@ public final class MainActivity extends Activity {
   private Button button(String name, boolean active){
     Button b=new Button(this);b.setText(name);b.setAllCaps(false);b.setTextSize(13);
     b.setTypeface(medium());b.setTextColor(active?0xff000000:WHITE);b.setPadding(dp(10),0,dp(10),0);
-    b.setBackground(back(active?RED:CARD2,active?RED:LINE,11));return b;
+    b.setBackground(back(active?RED:CARD2,active?RED:LINE,11));tvFocus(b);return b;
   }
   private Button block(LinearLayout into,String s,boolean accent,Runnable click){
     Button b=button(s,accent);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(52));lp.topMargin=dp(5);into.addView(b,lp);
@@ -185,7 +200,7 @@ public final class MainActivity extends Activity {
     setContentView(outer);
     root=vertical();root.setBackgroundColor(BLACK);
     outer.addView(root,new FrameLayout.LayoutParams(-1,-1));
-    header=vertical();header.setPadding(dp(17),dp(15),dp(12),dp(12));
+    header=vertical();header.setPadding(dp(isTv()?35:17),dp(15),dp(isTv()?35:12),dp(12));
     root.addView(header,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout branding=horizontal();header.addView(branding);
     ImageView logo=new ImageView(this);
@@ -200,8 +215,8 @@ public final class MainActivity extends Activity {
     dots.setContentDescription("Otwórz menu");
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
-    dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.9",10,MUTED,false);
+    dots.setOnClickListener(v->openDrawer());tvFocus(dots);
+    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.1.0",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -211,7 +226,7 @@ public final class MainActivity extends Activity {
     ScrollView body=new ScrollView(this);
     bodyScroll=body;
     body.setFillViewport(true);body.setVerticalScrollBarEnabled(false);
-    page=vertical();page.setPadding(dp(17),dp(20),dp(17),dp(38));
+    page=vertical();page.setPadding(dp(isTv()?35:17),dp(20),dp(isTv()?35:17),dp(38));
     body.addView(page);root.addView(body,new LinearLayout.LayoutParams(-1,0,1));
     buildDrawer();
     uiReady=true;
@@ -265,7 +280,7 @@ public final class MainActivity extends Activity {
         TextView arrow=label("›",27,MUTED,false);
         row.addView(arrow);
       }
-      row.setOnClickListener(v->{
+      tvFocus(row);row.setOnClickListener(v->{
         if(idx==-1)chooseTheme();
         else if(idx==-2){closeDrawer();launchAudioImport();}
         else{closeDrawer();showTab(idx);}
@@ -273,7 +288,7 @@ public final class MainActivity extends Activity {
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.9",12,MUTED,false);
+    TextView foot=label("PureCapture  •  n2s\nAndroid 9+ / Android TV 12  •  v2.1.0",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -285,6 +300,9 @@ public final class MainActivity extends Activity {
     View scrim=drawerOverlay.getChildAt(0);
     scrim.animate().alpha(1f).setDuration(180).start();
     drawerPanel.animate().translationX(0).setDuration(220).start();
+    if(isTv())drawerPanel.post(()->{for(int i=1;i<drawerPanel.getChildCount();i++){
+      View item=drawerPanel.getChildAt(i);if(item.isFocusable()&&item.requestFocus())break;
+    }});
   }
   private void closeDrawer(){
     if(!drawerOpen)return;
@@ -312,7 +330,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(49),1);
         if(i==0)lp.rightMargin=dp(8);
         homeTabs.addView(choice,lp);
-        choice.setOnClickListener(v->showTab(target));
+        choice.setOnClickListener(v->showTab(target));tvFocus(choice);
       }
     }
     page.removeAllViews();
@@ -328,6 +346,7 @@ public final class MainActivity extends Activity {
       default: diagnosticPage();break;
     }
     updateNow();
+    if(isTv() && index==0 && recordToggle!=null)recordToggle.post(()->recordToggle.requestFocus());
   }
   private File dir(){File d=getExternalFilesDir(Environment.DIRECTORY_MUSIC);if(d==null)d=new File(getFilesDir(),"Music");if(!d.exists())d.mkdirs();return d;}
   private boolean isCompletedRecording(File candidate){
@@ -426,7 +445,7 @@ public final class MainActivity extends Activity {
       showTab(3);
       bodyScroll.post(()->bodyScroll.scrollTo(0,y));
     };
-    title.setOnClickListener(expand);summary.setOnClickListener(expand);
+    title.setOnClickListener(expand);summary.setOnClickListener(expand);tvFocus(title);tvFocus(summary);
     return section;
   }
   private void configOption(LinearLayout section,String label,boolean checked,Runnable callback){
@@ -437,7 +456,7 @@ public final class MainActivity extends Activity {
     LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(46));
     lp.topMargin=dp(6);
     section.addView(option,lp);
-    option.setOnClickListener(v->{
+    tvFocus(option);option.setOnClickListener(v->{
       int y=bodyScroll.getScrollY();
       callback.run();
       expandedConfig=-1;
@@ -696,7 +715,7 @@ public final class MainActivity extends Activity {
       LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(0,dp(42),1);
       if(i>0)fp.leftMargin=dp(4);
       filters.addView(b,fp);
-      b.setOnClickListener(v->{
+      tvFocus(b);b.setOnClickListener(v->{
         if(chosen==2){favoritesPage();return;}
         if(chosen==3){trashPage();return;}
         sort=chosen;showTab(2);
@@ -724,7 +743,7 @@ public final class MainActivity extends Activity {
     row.addView(filename,new LinearLayout.LayoutParams(0,-1,1));
     TextView more=label(String.format(Locale.US,"%.1f MB  ›",f.length()/1048576f),12,MUTED,false);
     row.addView(more);
-    item.setOnClickListener(v->{
+    tvFocus(item);item.setOnClickListener(v->{
       if(trashed){
         new AlertDialog.Builder(this).setTitle("Nagranie w koszu")
           .setItems(new String[]{"Przywróć","Usuń na stałe"},(d,which)->{
@@ -739,7 +758,7 @@ public final class MainActivity extends Activity {
   private void chip(LinearLayout parent,String title,Runnable click){
     TextView b=label(title,11,WHITE,true);b.setGravity(Gravity.CENTER);
     b.setBackground(back(CARD2,LINE,8));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(39),1);p.rightMargin=dp(5);
-    parent.addView(b,p);b.setOnClickListener(v->click.run());
+    parent.addView(b,p);b.setOnClickListener(v->click.run());tvFocus(b);
   }
   private void fileMenu(File f){
     new AlertDialog.Builder(this).setTitle(f.getName())
@@ -888,7 +907,7 @@ public final class MainActivity extends Activity {
     // width; cap on larger screens so they do not become tall rectangles.
     int available=getResources().getDisplayMetrics().widthPixels
       -dp(17*2+15*2+5*5);
-    int tileSide=Math.min(dp(52),Math.max(dp(36),available/6));
+    int tileSide=isTv()?dp(72):Math.min(dp(52),Math.max(dp(36),available/6));
     c.addView(controls,new LinearLayout.LayoutParams(-1,tileSide));
     final String[] hints={"Poprzednie nagranie","Odtwórz","Pauza","Stop",
       "Następne nagranie","Więcej"};
@@ -898,7 +917,7 @@ public final class MainActivity extends Activity {
       tile.setContentDescription(hints[i]);
       tile.setClickable(true);
       tile.setFocusable(true);
-      tile.setBackground(back(CARD2,RED,10));
+      tile.setBackground(back(CARD2,RED,10));tvFocus(tile);
       tile.setElevation(dp(1));
       LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(tileSide,tileSide);
       if(i>0)params.leftMargin=dp(5);
