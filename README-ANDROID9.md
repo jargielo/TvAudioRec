@@ -30,3 +30,9 @@
 - The recorder and player continue using the same local app library even when the recording is also copied to the public Music/PureCapture directory.
 
 The player does not auto-start the file; press ODTWÓRZ to begin playback.
+
+## v2.0.4 – neon playback panel prototype
+- Player window matches the approved visual style within the app's Dark, Light, and System themes; default Dark remains AMOLED black.
+- Only filename, real playback signal meter, red seek bar with elapsed / total playback times, and 4 equal icon-only red neon tiles (Play, Pause, Stop, More).
+- More contains file actions, favorites, rename, share, trash, and My Recordings. Icons drawn as vector canvas shapes with accessibility labels, not emoji or text pretending to be icons.
+- A new recording remains auto-selected after conversion as in v2.0.3; timer and seek are functional when MediaPlayer supports the file.

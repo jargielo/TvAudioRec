@@ -8,11 +8,13 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Canvas;
+import android.graphics.Path;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
+import android.media.MediaMetadataRetriever;
 import android.media.audiofx.Visualizer;
 import android.content.res.Configuration;
 import android.net.Uri;
@@ -105,6 +107,9 @@ public final class MainActivity extends Activity {
   private boolean recordingActionPending=false;
   private Meter meter;
   private SeekBar progress;
+  private TextView playerElapsed, playerTotal;
+  private boolean userSeeking=false;
+  private int selectedDurationMs=0;
   private MediaPlayer player;
   private Visualizer visualizer;
   private volatile float playbackLevel=0f;
@@ -196,7 +201,7 @@ public final class MainActivity extends Activity {
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.3",10,MUTED,false);
+    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.4",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -263,7 +268,7 @@ public final class MainActivity extends Activity {
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.3",12,MUTED,false);
+    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.4",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -306,7 +311,7 @@ public final class MainActivity extends Activity {
       }
     }
     page.removeAllViews();
-    state=null;time=null;meter=null;playerMeter=null;fileCount=null;playerLabel=null;progress=null;recordToggle=null;
+    state=null;time=null;meter=null;playerMeter=null;fileCount=null;playerLabel=null;progress=null;playerElapsed=null;playerTotal=null;recordToggle=null;
     switch(index){
       case 0: recorderPage();break;
       case 1: playerPage();break;
@@ -642,7 +647,17 @@ public final class MainActivity extends Activity {
     if(meter!=null)meter.invalidate();
     if(playerMeter!=null)playerMeter.invalidate();
     if(player!=null && progress!=null){
-      try{progress.setMax(player.getDuration());progress.setProgress(player.getCurrentPosition());}catch(Exception ignored){}
+      try{
+        int duration=Math.max(0,player.getDuration());
+        int current=Math.max(0,player.getCurrentPosition());
+        selectedDurationMs=duration;
+        progress.setMax(Math.max(1,duration));
+        if(!userSeeking){
+          progress.setProgress(current);
+          if(playerElapsed!=null)playerElapsed.setText(playbackTime(current));
+        }
+        if(playerTotal!=null)playerTotal.setText(playbackTime(duration));
+      }catch(Exception ignored){}
     }
   }
   private void scan(){
@@ -793,39 +808,103 @@ public final class MainActivity extends Activity {
         toast("Zaimportowano: "+dst.getName());showTab(2);
       }catch(Exception e){toast("Błąd importu: "+e.getMessage());dst.delete();}
   }
+
+  private static String playbackTime(int milliseconds){
+    int sec=Math.max(0,milliseconds)/1000;
+    if(sec>=3600)return String.format(Locale.ROOT,"%d:%02d:%02d",sec/3600,(sec/60)%60,sec%60);
+    return String.format(Locale.ROOT,"%d:%02d",sec/60,sec%60);
+  }
+  private int readSelectedDuration(){
+    if(currentFile==null || !currentFile.isFile())return 0;
+    MediaMetadataRetriever metadata=new MediaMetadataRetriever();
+    try{
+      metadata.setDataSource(currentFile.getAbsolutePath());
+      String value=metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+      return value==null?0:Math.max(0,Math.min(Integer.MAX_VALUE,Long.parseLong(value)));
+    }catch(Exception ignored){
+      return 0;
+    }finally{
+      try{metadata.release();}catch(Exception ignored){}
+    }
+  }
   private void playerPage(){
+    // Playback is displayed on a single dark/light-themed surface: filename, meter,
+    // red seek line and four icon-only controls. No second file-action card.
     LinearLayout c=card(page);
     playerLabel=addLabel(c,currentFile==null?
       (RecordingService.processing?"Trwa zapisywanie nagrania…":"Nie wybrano nagrania"):
       currentFile.getName(),16,WHITE,true);
-    playerLabel.setSingleLine(false);
+    playerLabel.setGravity(Gravity.CENTER);
     playerLabel.setMaxLines(2);
-    gap(c,14);
+    playerLabel.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    gap(c,19);
+    hairline(c);
+    gap(c,15);
     playerMeter=new Meter(this,true);
-    c.addView(playerMeter,new LinearLayout.LayoutParams(-1,dp(104)));
-    gap(c,18);
+    c.addView(playerMeter,new LinearLayout.LayoutParams(-1,dp(124)));
+    gap(c,10);
+    selectedDurationMs=readSelectedDuration();
+    progress=new SeekBar(this);
+    progress.setMax(Math.max(1,selectedDurationMs));
+    progress.setProgress(0);
+    progress.setProgressTintList(android.content.res.ColorStateList.valueOf(RED));
+    progress.setThumbTintList(android.content.res.ColorStateList.valueOf(RED));
+    progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(
+      lightTheme?0xffd9d9dd:0xff3c3c3f));
+    c.addView(progress,new LinearLayout.LayoutParams(-1,dp(43)));
+    progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+      @Override public void onStartTrackingTouch(SeekBar seek){userSeeking=true;}
+      @Override public void onProgressChanged(SeekBar seek,int position,boolean user){
+        if(user && playerElapsed!=null)playerElapsed.setText(playbackTime(position));
+      }
+      @Override public void onStopTrackingTouch(SeekBar seek){
+        int position=seek.getProgress();
+        if(player==null && currentFile!=null && currentFile.isFile())play(currentFile);
+        if(player!=null){
+          try{player.seekTo(Math.min(position,Math.max(0,player.getDuration())));}
+          catch(Exception ignored){}
+        }
+        userSeeking=false;
+      }
+    });
+    LinearLayout times=horizontal();
+    c.addView(times,new LinearLayout.LayoutParams(-1,dp(26)));
+    playerElapsed=label("0:00",12,MUTED,false);
+    times.addView(playerElapsed,new LinearLayout.LayoutParams(0,-2,1));
+    playerTotal=label(playbackTime(selectedDurationMs),12,MUTED,false);
+    playerTotal.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+    times.addView(playerTotal,new LinearLayout.LayoutParams(0,-2,1));
+    gap(c,22);
     LinearLayout controls=horizontal();
-    c.addView(controls,new LinearLayout.LayoutParams(-1,dp(53)));
-    final String[] labels={"ODTWÓRZ","PAUZA","STOP","WIĘCEJ"};
-    for(int i=0;i<labels.length;i++){
+    c.addView(controls,new LinearLayout.LayoutParams(-1,dp(76)));
+    final String[] hints={"Odtwórz","Pauza","Stop","Więcej"};
+    for(int i=0;i<4;i++){
       final int action=i;
-      TextView btn=label(labels[i],11,WHITE,true);
-      btn.setGravity(Gravity.CENTER);
-      btn.setSingleLine(true);
-      btn.setPadding(dp(1),0,dp(1),0);
-      btn.setBackground(back(CARD2,LINE,10));
-      LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(52),1);
-      if(i>0)p.leftMargin=dp(5);
-      controls.addView(btn,p);
-      btn.setOnClickListener(v->{
+      IconTile tile=new IconTile(this,i);
+      tile.setContentDescription(hints[i]);
+      tile.setClickable(true);
+      tile.setFocusable(true);
+      tile.setBackground(back(CARD2,RED,16));
+      tile.setElevation(dp(2));
+      LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(0,dp(74),1);
+      if(i>0)params.leftMargin=dp(7);
+      controls.addView(tile,params);
+      tile.setOnClickListener(v->{
         if(action==0){
-          if(player!=null){player.start();enableVisualizer();}
-          else if(currentFile!=null)play(currentFile);
-          else showTab(2);
+          if(player!=null){
+            player.start();
+            enableVisualizer();
+          }else if(currentFile!=null && currentFile.isFile()){
+            play(currentFile);
+          }else{
+            showTab(2);
+          }
         }else if(action==1){
           if(player!=null && player.isPlaying())player.pause();
         }else if(action==2){
           stopPlayer();
+          if(progress!=null)progress.setProgress(0);
+          if(playerElapsed!=null)playerElapsed.setText("0:00");
           if(playerMeter!=null)playerMeter.invalidate();
         }else{
           playerMore();
@@ -873,12 +952,15 @@ public final class MainActivity extends Activity {
       player=new MediaPlayer();
       player.setDataSource(f.getAbsolutePath());
       player.prepare();
+      selectedDurationMs=player.getDuration();
       enableVisualizer();
       player.setOnCompletionListener(mp->{
         stopPlayer();
         if(playerLabel!=null)playerLabel.setText(f.getName());
       });
       if(playerLabel!=null)playerLabel.setText(f.getName());
+      if(playerTotal!=null)playerTotal.setText(playbackTime(selectedDurationMs));
+      if(progress!=null)progress.setMax(Math.max(1,selectedDurationMs));
       player.start();
     }catch(Exception e){
       stopPlayer();
@@ -936,7 +1018,7 @@ public final class MainActivity extends Activity {
     micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(2));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"PureCapture 2.0.3  •  n2s");
+    micro(about,"PureCapture 2.0.4  •  n2s");
     micro(about,"Android: "+Build.VERSION.RELEASE+". Obsługa przechwytywania wewnętrznego od Androida 10.");
   }
   private void diagnosticPage(){
@@ -944,7 +1026,7 @@ public final class MainActivity extends Activity {
     LinearLayout c=card(page);title(c,"URZĄDZENIE");
     item(c,"MODEL",Build.MANUFACTURER+" "+Build.MODEL);
     item(c,"ANDROID",Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
-    item(c,"WERSJA","PureCapture 2.0.3");
+    item(c,"WERSJA","PureCapture 2.0.4");
     item(c,"UPRAWNIENIE MIKROFONU",checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED?"PRZYZNANE":"BRAK");
     item(c,"KATALOG NAGRAŃ",dir().getAbsolutePath());
     item(c,"WOLNE MIEJSCE",String.format(Locale.US,"%.2f GB",dir().getUsableSpace()/1073741824f));
@@ -984,6 +1066,44 @@ public final class MainActivity extends Activity {
     }
   }
   @Override protected void onDestroy(){ui.removeCallbacks(tick);stopPlayer();super.onDestroy();}
+
+  private static final class IconTile extends View{
+    private final int type;
+    private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+    IconTile(MainActivity context,int type){
+      super(context);
+      this.type=type;
+      setLayerType(View.LAYER_TYPE_SOFTWARE,null);
+    }
+    @Override protected void onDraw(Canvas canvas){
+      super.onDraw(canvas);
+      float cx=getWidth()/2f,cy=getHeight()/2f;
+      float unit=Math.min(getWidth(),getHeight());
+      paint.setStyle(Paint.Style.FILL);
+      paint.setColor(RED);
+      paint.setShadowLayer(Math.max(2,unit*0.10f),0,0,0x88ff244d);
+      if(type==0){
+        Path triangle=new Path();
+        float r=unit*0.22f;
+        triangle.moveTo(cx-r*0.72f,cy-r*1.25f);
+        triangle.lineTo(cx+r*1.14f,cy);
+        triangle.lineTo(cx-r*0.72f,cy+r*1.25f);
+        triangle.close();
+        canvas.drawPath(triangle,paint);
+      }else if(type==1){
+        float h=unit*0.48f,w=unit*0.105f,gap=unit*0.082f;
+        canvas.drawRoundRect(cx-gap-w,cy-h/2,cx-gap,cy+h/2,unit*.025f,unit*.025f,paint);
+        canvas.drawRoundRect(cx+gap,cy-h/2,cx+gap+w,cy+h/2,unit*.025f,unit*.025f,paint);
+      }else if(type==2){
+        float r=unit*0.205f;
+        canvas.drawRoundRect(cx-r,cy-r,cx+r,cy+r,unit*.025f,unit*.025f,paint);
+      }else{
+        float radius=unit*0.072f,space=unit*0.205f;
+        for(int p=-1;p<=1;p++)canvas.drawCircle(cx+p*space,cy,radius,paint);
+      }
+      paint.clearShadowLayer();
+    }
+  }
   private static final class Meter extends View{
     private final MainActivity owner;
     private final boolean playback;
