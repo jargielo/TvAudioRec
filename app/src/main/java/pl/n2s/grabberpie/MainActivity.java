@@ -820,7 +820,7 @@ public final class MainActivity extends Activity {
     try{
       metadata.setDataSource(currentFile.getAbsolutePath());
       String value=metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-      return value==null?0:Math.max(0,Math.min(Integer.MAX_VALUE,Long.parseLong(value)));
+      return value==null?0:(int)Math.max(0L,Math.min((long)Integer.MAX_VALUE,Long.parseLong(value)));
     }catch(Exception ignored){
       return 0;
     }finally{
