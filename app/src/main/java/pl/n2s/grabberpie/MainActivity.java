@@ -19,6 +19,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.provider.OpenableColumns;
+import android.provider.DocumentsContract;
 import android.database.Cursor;
 import android.view.Gravity;
 import android.view.View;
@@ -37,6 +38,7 @@ public final class MainActivity extends Activity {
   private final Handler ui=new Handler();
   private final Runnable tick=new Runnable(){ @Override public void run(){ updateNow();ui.postDelayed(this,300); } };
   private LinearLayout root, page, header, drawerPanel, homeTabs;
+  private ScrollView bodyScroll;
   private FrameLayout outer, drawerOverlay;
   private boolean drawerOpen=false;
   private TextView state, time, fileCount, playerLabel;
@@ -117,21 +119,19 @@ public final class MainActivity extends Activity {
     root.addView(header,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout branding=horizontal();header.addView(branding);
     ImageView logo=new ImageView(this);
-    logo.setImageResource(R.drawable.grabber_cyberpunk);
+    logo.setImageResource(R.drawable.cyberpunk_foreground);
     logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
     branding.addView(logo,new LinearLayout.LayoutParams(dp(62),dp(62)));
     LinearLayout words=vertical();words.setPadding(dp(7),0,0,0);
     branding.addView(words,new LinearLayout.LayoutParams(0,-2,1));
-    TextView a=addLabel(words,"AudioRelay",25,WHITE,false);
+    TextView a=addLabel(words,"PureCapture",27,WHITE,false);
     a.setTypeface(thin());a.setIncludeFontPadding(false);
-    TextView g=addLabel(words,"Grabber",25,WHITE,false);
-    g.setTypeface(thin());g.setIncludeFontPadding(false);
     TextView dots=label("⋮",34,WHITE,true);
     dots.setContentDescription("Otwórz menu");
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  v1.9.9",10,MUTED,false);
+    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  v2.0.0",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -139,6 +139,7 @@ public final class MainActivity extends Activity {
     View divider=new View(this);divider.setBackgroundColor(LINE);
     root.addView(divider,new LinearLayout.LayoutParams(-1,dp(1)));
     ScrollView body=new ScrollView(this);
+    bodyScroll=body;
     body.setFillViewport(true);body.setVerticalScrollBarEnabled(false);
     page=vertical();page.setPadding(dp(17),dp(20),dp(17),dp(38));
     body.addView(page);root.addView(body,new LinearLayout.LayoutParams(-1,0,1));
@@ -162,13 +163,13 @@ public final class MainActivity extends Activity {
     LinearLayout brand=horizontal();
     drawerPanel.addView(brand,new LinearLayout.LayoutParams(-1,dp(83)));
     ImageView logo=new ImageView(this);
-    logo.setImageResource(R.drawable.grabber_cyberpunk);
+    logo.setImageResource(R.drawable.cyberpunk_foreground);
     logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
     brand.addView(logo,new LinearLayout.LayoutParams(dp(73),dp(73)));
     LinearLayout texts=vertical();texts.setPadding(dp(5),0,0,0);
     brand.addView(texts,new LinearLayout.LayoutParams(0,-2,1));
-    addLabel(texts,"AudioRelay",21,WHITE,true);
-    addLabel(texts,"Grabber",19,MUTED,false);
+    addLabel(texts,"PureCapture",21,WHITE,true);
+    addLabel(texts,"n2s",16,MUTED,false);
     gap(drawerPanel,27);
     String[] names={"← Powrót do rejestratora","Moje nagrania","Konfiguracja nagrania","Ustawienia","Diagnostyka"};
     String[] glyphs={"●","▢","☷","⚙","⌁"};
@@ -177,7 +178,7 @@ public final class MainActivity extends Activity {
       if(i==1 || i==3){gap(drawerPanel,7);hairline(drawerPanel);gap(drawerPanel,6);}
       final int idx=destinations[i];
       LinearLayout row=horizontal();row.setPadding(dp(13),0,dp(12),0);
-      row.setBackground(back(idx==tab?0xff41262c:0xff29282a,0,12));
+      row.setBackground(back(0xff29282a,0,12));
       LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(64));
       rp.bottomMargin=dp(7);drawerPanel.addView(row,rp);
       TextView ico=label(glyphs[i],25,idx==tab?RED:WHITE,false);
@@ -191,7 +192,7 @@ public final class MainActivity extends Activity {
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("AudioRelay Grabber  •  n2s\nAndroid 9 Pie / S24 Ultra  •  v1.9.9",12,MUTED,false);
+    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.0",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -289,73 +290,111 @@ public final class MainActivity extends Activity {
     LinearLayout section=card(page);
     TextView title=label(heading+"   "+(expandedConfig==index?"⌃":"⌄"),16,WHITE,true);
     title.setPadding(dp(3),dp(5),dp(3),dp(5));
-    section.addView(title,new LinearLayout.LayoutParams(-1,dp(37)));
+    section.addView(title,new LinearLayout.LayoutParams(-1,dp(39)));
     TextView summary=label(selected,13,MUTED,false);
     summary.setPadding(dp(3),0,dp(3),dp(7));
     section.addView(summary,new LinearLayout.LayoutParams(-1,-2));
-    title.setOnClickListener(v->{expandedConfig=(expandedConfig==index?-1:index);showTab(3);});
-    summary.setOnClickListener(v->{expandedConfig=(expandedConfig==index?-1:index);showTab(3);});
+    View.OnClickListener expand=v->{
+      int y=bodyScroll.getScrollY();
+      expandedConfig=expandedConfig==index?-1:index;
+      showTab(3);
+      bodyScroll.post(()->bodyScroll.scrollTo(0,y));
+    };
+    title.setOnClickListener(expand);summary.setOnClickListener(expand);
     return section;
+  }
+  private void configOption(LinearLayout section,String label,boolean checked,Runnable callback){
+    TextView option=label((checked?"●   ":"○   ")+label,14,WHITE,checked);
+    option.setGravity(Gravity.CENTER_VERTICAL);
+    option.setPadding(dp(13),0,dp(10),0);
+    option.setBackground(back(checked?0xff41252c:CARD2,checked?RED:LINE,9));
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(46));
+    lp.topMargin=dp(6);
+    section.addView(option,lp);
+    option.setOnClickListener(v->{
+      int y=bodyScroll.getScrollY();
+      callback.run();
+      showTab(3);
+      bodyScroll.post(()->bodyScroll.scrollTo(0,y));
+    });
+  }
+  private String saveFolderLabel(){
+    String value=prefs.getString("save_tree_uri","");
+    if(value.isEmpty())return "Domyślny folder aplikacji";
+    try{
+      String id=DocumentsContract.getTreeDocumentId(Uri.parse(value));
+      return Uri.decode(id);
+    }catch(Exception e){return "Wybrany folder zewnętrzny";}
+  }
+  private void chooseSaveFolder(){
+    Intent picker=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+    picker.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+      |Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+      |Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+    startActivityForResult(picker,208);
   }
   private void configPage(){
     h(page,"KONFIGURACJA NAGRANIA");gap(page,11);
-    micro(page,"Rozwiń wybraną sekcję i ustaw parametry nagrywania.");
-    gap(page,17);
-    LinearLayout formats=configCard(0,"Format zapisu",fmt());
+    micro(page,"Dotknij opcji, aby rozwinąć jej ustawienia poniżej.");
+    gap(page,16);
+    LinearLayout sourceSection=configCard(0,"Źródło dźwięku",sourceName());
     if(expandedConfig==0){
-      String[] fmts={"M4A","WAV","FLAC","MP3","AAC","3GP","OGG"};
-      for(String f:fmts){
-        Button b=block(formats,(fmt().equals(f)?"◉   ":"○   ")+f,fmt().equals(f),()->{
-          prefs.edit().putString("format",f).apply();showTab(3);
-        });
-        b.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
-      }
-    }
-    LinearLayout freq=configCard(1,"Częstotliwość",hz()+" Hz");
-    if(expandedConfig==1){
-      int[] values={16000,32000,44100,48000};
-      String[] names={"16 kHz","32 kHz","44,1 kHz","48 kHz"};
-      int sel=2;for(int i=0;i<values.length;i++)if(hz()==values[i])sel=i;
-      actionStrip(freq,names,sel,i->{
-        prefs.edit().putInt("hz",values[i]).apply();showTab(3);
-      });
-    }
-    LinearLayout quality=configCard(2,"Jakość nagrania",kbps()+" kb/s");
-    if(expandedConfig==2){
-      int[] rates={96,128,192,256,320};
-      String[] names={"96","128","192","256","320"};
-      int sel=1;for(int i=0;i<rates.length;i++)if(kbps()==rates[i])sel=i;
-      actionStrip(quality,names,sel,i->{
-        prefs.edit().putInt("rate",rates[i]).apply();showTab(3);
-      });
-      gap(quality,8);micro(quality,"Przepływność dotyczy formatów stratnych; FLAC i WAV zachowują PCM.");
-    }
-    LinearLayout chan=configCard(3,"Kanały",channels()==2?"Stereo (2 kanały)":"Mono (1 kanał)");
-    if(expandedConfig==3){
-      actionStrip(chan,new String[]{"MONO","STEREO"},channels()==2?1:0,i->{
-        prefs.edit().putInt("channels",i==1?2:1).apply();showTab(3);
-      });
-      gap(chan,8);
-      micro(chan,"Stereo zapisuje dwa kanały PCM, jeżeli wybrane urządzenie udostępnia takie wejście. Mikrofony Bluetooth SCO zwykle działają w mono; w trybie miksowania dźwięk z nich zostaje rozdzielony na kanały stereo.");
-    }
-    LinearLayout src=configCard(4,"Źródło dźwięku",sourceName());
-    if(expandedConfig==4){
       String[] names={"Mikrofon urządzenia","Dźwięk wewnętrzny",
         "Mikrofon urządzenia + dźwięk wewnętrzny",
         "Mikrofon Bluetooth + dźwięk wewnętrzny"};
       for(int i=0;i<names.length;i++){
         final int chosen=i;
-        Button b=block(src,(source()==i?"◉   ":"○   ")+names[i],source()==i,()->{
+        configOption(sourceSection,names[i],source()==i,()->{
           if(chosen>0 && Build.VERSION.SDK_INT<29){
             new AlertDialog.Builder(this).setTitle("Android 9 Pie")
-              .setMessage("Ta funkcja wymaga Androida 10 lub nowszego. Mikrofon urządzenia pozostaje dostępny.")
-              .setPositiveButton("OK",null).show();return;
+              .setMessage("Dźwięk wewnętrzny wymaga Androida 10 lub nowszego. Na tym urządzeniu nagrywanie mikrofonu pozostaje dostępne.")
+              .setPositiveButton("OK",null).show();
+            return;
           }
-          prefs.edit().putInt("source",chosen).apply();showTab(3);
+          prefs.edit().putInt("source",chosen).apply();
         });
-        b.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
       }
-      gap(src,9);micro(src,"Przechwytywanie dźwięku wewnętrznego wymaga zgody systemowej i wsparcia ze strony źródłowej aplikacji.");
+    }
+    LinearLayout formats=configCard(1,"Format zapisu",fmt());
+    if(expandedConfig==1){
+      for(String f:new String[]{"M4A","WAV","FLAC","MP3","AAC","3GP","OGG"}){
+        configOption(formats,f,fmt().equals(f),()->prefs.edit().putString("format",f).apply());
+      }
+    }
+    LinearLayout frequency=configCard(2,"Częstotliwość",hz()+" Hz");
+    if(expandedConfig==2){
+      int[] freqs={16000,32000,44100,48000};
+      String[] labels={"16 kHz","32 kHz","44,1 kHz","48 kHz"};
+      for(int i=0;i<freqs.length;i++){
+        final int selected=freqs[i];
+        configOption(frequency,labels[i],hz()==selected,()->prefs.edit().putInt("hz",selected).apply());
+      }
+    }
+    LinearLayout quality=configCard(3,"Jakość nagrania",kbps()+" kb/s");
+    if(expandedConfig==3){
+      for(int rate:new int[]{96,128,192,256,320}){
+        configOption(quality,rate+" kb/s",kbps()==rate,()->prefs.edit().putInt("rate",rate).apply());
+      }
+      gap(quality,9);micro(quality,"Przepływność dotyczy formatów stratnych. FLAC i WAV są bezstratne.");
+    }
+    LinearLayout channel=configCard(4,"Kanały",channels()==2?"Stereo (2 kanały)":"Mono (1 kanał)");
+    if(expandedConfig==4){
+      configOption(channel,"Mono (1 kanał)",channels()==1,()->prefs.edit().putInt("channels",1).apply());
+      configOption(channel,"Stereo (2 kanały)",channels()==2,()->prefs.edit().putInt("channels",2).apply());
+      gap(channel,8);
+      micro(channel,"Dwa kanały są zapisywane, gdy pozwala na to wejście. Mikrofon Bluetooth SCO zazwyczaj zapewnia dźwięk mono.");
+    }
+    LinearLayout location=configCard(5,"Miejsce zapisu plików",saveFolderLabel());
+    if(expandedConfig==5){
+      micro(location,"Wybierz folder na urządzeniu lub w dostępnym dostawcy pamięci. Zapis nagrań będzie także widoczny w bibliotece aplikacji.");
+      gap(location,11);
+      block(location,"WYBIERZ FOLDER ZAPISU",true,this::chooseSaveFolder);
+      block(location,"PRZYWRÓĆ DOMYŚLNY FOLDER",false,()->{
+        prefs.edit().remove("save_tree_uri").apply();
+        showTab(3);
+      });
+      gap(location,9);
+      micro(location,"Na Androidzie 11+ system może ograniczać wybór katalogów głównych i folderów Android/data. W razie błędu zapisu plik zostanie zachowany w pamięci aplikacji.");
     }
     gap(page,10);block(page,"‹   POWRÓT DO REJESTRATORA",false,()->showTab(0));
   }
@@ -407,6 +446,19 @@ public final class MainActivity extends Activity {
       ui.postDelayed(this::updateNow,450);
     }
     if(req==211 && result==RESULT_OK && data!=null && data.getData()!=null)importAudio(data.getData());
+    if(req==208 && result==RESULT_OK && data!=null && data.getData()!=null){
+      Uri chosen=data.getData();
+      try{
+        int flags=data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        getContentResolver().takePersistableUriPermission(chosen,flags);
+        prefs.edit().putString("save_tree_uri",chosen.toString()).apply();
+        expandedConfig=5;
+        showTab(3);
+        toast("Zmieniono miejsce zapisu nagrań.");
+      }catch(Exception error){
+        toast("Nie udało się zapisać dostępu do folderu: "+error.getMessage());
+      }
+    }
   }
   private void stop(){
     startService(new Intent(this,RecordingService.class).setAction(RecordingService.STOP));
@@ -474,12 +526,27 @@ public final class MainActivity extends Activity {
     block(page,"‹   POWRÓT DO REJESTRATORA",false,()->showTab(0));
     gap(page,12);
     LinearLayout c=card(page);
-    fileCount=addLabel(c,items.size()+" plików  •  Music/AudioRelay Grabber",15,WHITE,true);
+    fileCount=addLabel(c,items.size()+" plików  •  PureCapture",15,WHITE,true);
     gap(c,14);
-    actionStrip(c,new String[]{"NAJNOWSZE","NAZWA","ULUBIONE","KOSZ"},sort==1?1:0,i->{
-      if(i==2){favoritesPage();return;}if(i==3){trashPage();return;}
-      sort=i;showTab(2);
-    });
+    LinearLayout filters=horizontal();
+    c.addView(filters,new LinearLayout.LayoutParams(-1,dp(43)));
+    String[] filtersNames={"Najnowsze","Nazwa","Ulubione","Kosz"};
+    for(int i=0;i<filtersNames.length;i++){
+      final int chosen=i;
+      TextView b=label(filtersNames[i],11,WHITE,i==(sort==1?1:0));
+      b.setSingleLine(true);
+      b.setGravity(Gravity.CENTER);
+      b.setPadding(dp(1),0,dp(1),0);
+      b.setBackground(back(i==(sort==1?1:0)?0xff44212a:CARD2,LINE,8));
+      LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(0,dp(42),1);
+      if(i>0)fp.leftMargin=dp(4);
+      filters.addView(b,fp);
+      b.setOnClickListener(v->{
+        if(chosen==2){favoritesPage();return;}
+        if(chosen==3){trashPage();return;}
+        sort=chosen;showTab(2);
+      });
+    }
     gap(c,12);
     EditText find=new EditText(this);find.setSingleLine(true);find.setTextSize(15);find.setHint("Szukaj nagrania…");find.setTextColor(WHITE);
     find.setHintTextColor(MUTED);find.setBackground(back(CARD2,LINE,10));find.setPadding(dp(13),0,dp(13),0);
@@ -656,7 +723,7 @@ public final class MainActivity extends Activity {
     micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(2));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"AudioRelay Grabber 1.9.9  •  n2s");
+    micro(about,"PureCapture 2.0.0  •  n2s");
     micro(about,"Android: "+Build.VERSION.RELEASE+". Obsługa przechwytywania wewnętrznego od Androida 10.");
   }
   private void diagnosticPage(){
@@ -664,7 +731,7 @@ public final class MainActivity extends Activity {
     LinearLayout c=card(page);title(c,"URZĄDZENIE");
     item(c,"MODEL",Build.MANUFACTURER+" "+Build.MODEL);
     item(c,"ANDROID",Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
-    item(c,"WERSJA","AudioRelay Grabber 1.9.9");
+    item(c,"WERSJA","PureCapture 2.0.0");
     item(c,"UPRAWNIENIE MIKROFONU",checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED?"PRZYZNANE":"BRAK");
     item(c,"KATALOG NAGRAŃ",dir().getAbsolutePath());
     item(c,"WOLNE MIEJSCE",String.format(Locale.US,"%.2f GB",dir().getUsableSpace()/1073741824f));

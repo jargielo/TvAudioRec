@@ -1,10 +1,12 @@
-# AudioRelay Grabber 1.9.9 – Final configuration & icon
-- Homepage: Rejestrator dźwięku and Odtwarzacz only.
-- Three-dot drawer: Powrót do rejestratora, Moje nagrania, Konfiguracja nagrania, Ustawienia, Diagnostyka.
-- Konfiguracja nagrania collapsible sections: Format zapisu, Częstotliwość, Jakość nagrania, Kanały (Mono/Stereo), Źródło dźwięku (four modes).
-- Settings page no longer duplicates recording configuration.
-- Stereo PCM is recorded as 2 channels where device supports it; captures internal stereo and mixes microphone into both channels. Bluetooth mic mono is mixed into both channels with stereo internal audio.
-- Seven output formats (M4A WAV FLAC MP3 AAC 3GP OGG); FFmpegKit Audio bundled.
-- Launcher: opaque black PNG for legacy and round icons, plus adaptive launcher with solid black background and neon red ring foreground; no monochrome layer, to avoid system themed white icon on supported launchers.
-- Android 9: mic-only; Android 10+: MediaProjection/internal capture where supported.
-- Unique package ID cyber199, so install alongside older builds to avoid signature conflicts. Remove older shortcuts when testing the new icon.
+# PureCapture v2.0.0
+- Creator: n2s.
+- Compatible install minimum Android 9 (API 28), no declared maximum; runtime features may differ by device and Android versions.
+- Main tabs: Recorder and Player. Overflow drawer: Return to recorder, My recordings, Recording configuration, Settings, Diagnostics.
+- All configuration parameters display as vertical inline expanding sections: audio source, format, sample rate, bitrate, channels, output directory.
+- File storage via Android Storage Access Framework (ACTION_OPEN_DOCUMENT_TREE) with persisted URI permission. Finished recordings are copied to the chosen folder and kept in the local My Recordings library for playback, favorites, and deletion. A failed external copy never deletes the local recording.
+- "Newest", "Name", "Favorites", "Trash" are fixed equal-width buttons in one row, without horizontal scrolling.
+- Drawer/logo uses cyberpunk_foreground transparent PNG: red neon ring/dot only, no black logo tile. Installed launcher icon retains opaque black plus adaptive dark background.
+- Formats: WAV / M4A / FLAC / MP3 / AAC / 3GP / OGG. Encoders from FFmpegKit Audio.
+- Source: microphone; internal; mic + internal; Bluetooth mic + internal. Android 9 supports mic only. Internal audio capture requires Android 10+ and source cooperation.
+- Mono and stereo depending on hardware capabilities.
+- Package: pl.n2s.purecapture.

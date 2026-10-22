@@ -11,6 +11,8 @@ import android.os.*;
 import com.arthenica.ffmpegkit.FFmpegKit;
 import com.arthenica.ffmpegkit.ReturnCode;
 import java.io.*;
+import android.net.Uri;
+import android.provider.DocumentsContract;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -55,7 +57,7 @@ public final class RecordingService extends Service {
       PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
     Notification notification=new Notification.Builder(this,"rec")
       .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-      .setContentTitle("AudioRelay Grabber").setContentText("Nagrywanie dźwięku")
+      .setContentTitle("PureCapture").setContentText("Nagrywanie dźwięku")
       .setOngoing(true).setContentIntent(open).build();
     if(Build.VERSION.SDK_INT>=29 && !"microphone".equals(source))
       startForeground(47,notification,android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
@@ -222,6 +224,7 @@ public final class RecordingService extends Service {
     }
     if("WAV".equalsIgnoreCase(format)){
       if(!temporary.renameTo(target))lastError="Nie można zapisać WAV";
+      else copyToSelectedFolder(target);
       processing=false;finishService();return;
     }
     String params=encodingParams();
@@ -231,7 +234,7 @@ public final class RecordingService extends Service {
     try{
       FFmpegKit.executeAsync(args,session->{
         if(ReturnCode.isSuccess(session.getReturnCode())&&encoded.exists()&&encoded.length()>0){
-          wav.delete();lastError="";
+          wav.delete();lastError="";copyToSelectedFolder(encoded);
         }else{
           if(encoded.exists())encoded.delete();
           File rescued=new File(wav.getParent(),wav.getName().replace(".partial.wav",".wav"));
@@ -245,6 +248,39 @@ public final class RecordingService extends Service {
       File rescued=new File(wav.getParent(),wav.getName().replace(".partial.wav",".wav"));
       wav.renameTo(rescued);
       processing=false;finishService();
+    }
+  }
+  private void copyToSelectedFolder(File recording){
+    String saved=getSharedPreferences("grabber",MODE_PRIVATE).getString("save_tree_uri","");
+    if(saved.isEmpty() || !recording.isFile())return;
+    Uri targetUri=null;
+    try{
+      Uri tree=Uri.parse(saved);
+      String treeId=DocumentsContract.getTreeDocumentId(tree);
+      Uri parent=DocumentsContract.buildDocumentUriUsingTree(tree,treeId);
+      String name=recording.getName();
+      String ext=name.substring(name.lastIndexOf('.')+1).toLowerCase(Locale.US);
+      String mime="audio/*";
+      if(ext.equals("wav"))mime="audio/wav";
+      else if(ext.equals("mp3"))mime="audio/mpeg";
+      else if(ext.equals("m4a"))mime="audio/mp4";
+      else if(ext.equals("flac"))mime="audio/flac";
+      else if(ext.equals("ogg"))mime="audio/ogg";
+      else if(ext.equals("aac"))mime="audio/aac";
+      else if(ext.equals("3gp"))mime="audio/3gpp";
+      targetUri=DocumentsContract.createDocument(getContentResolver(),parent,mime,name);
+      if(targetUri==null)throw new IOException("Brak dostępu do wskazanego katalogu");
+      try(InputStream input=new FileInputStream(recording);
+          OutputStream output=getContentResolver().openOutputStream(targetUri,"w")){
+        if(output==null)throw new IOException("Nie można otworzyć pliku docelowego");
+        byte[] buffer=new byte[32768];int read;
+        while((read=input.read(buffer))!=-1)output.write(buffer,0,read);
+        output.flush();
+      }
+      // Keep the local copy indexed in My Recordings while also saving to the selected folder.
+    }catch(Exception ex){
+      if(targetUri!=null)try{DocumentsContract.deleteDocument(getContentResolver(),targetUri);}catch(Exception ignored){}
+      lastError="Zapisano lokalnie. Kopia w wybranym folderze nieudana: "+ex.getMessage();
     }
   }
   private String encodingParams(){

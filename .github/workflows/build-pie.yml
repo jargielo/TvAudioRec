@@ -1,4 +1,4 @@
-name: Build AudioRelay Grabber Android 9
+name: Build PureCapture Android 9+
 on:
   push:
     branches: [grabber-android9-pie]
@@ -39,10 +39,13 @@ jobs:
               assert z.read(bitmap[0])[:8] == bytes([137,80,78,71,13,10,26,10])
               print('Verified raster asset',bitmap,'and launcher images',launcher)
           PY
+      - name: Verify Android compatibility metadata
+        run: |
+          ${ANDROID_HOME}/build-tools/34.0.0/aapt dump badging app/build/outputs/apk/debug/app-debug.apk | grep -E "(package:|sdkVersion:|targetSdkVersion:|application-label:)"
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk AudioRelay-Grabber-v1.9.9-Huawei-P20-Lite-AMOLED.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk PureCapture-v2.0.0-Android9-plus.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: AudioRelay-Grabber-v1.9.9-Android9-AMOLED
-          path: AudioRelay-Grabber-v1.9.9-Huawei-P20-Lite-AMOLED.apk
+          name: PureCapture-v2.0.0-Android9-plus
+          path: PureCapture-v2.0.0-Android9-plus.apk
           if-no-files-found: error
