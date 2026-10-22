@@ -915,16 +915,6 @@ public final class MainActivity extends Activity {
   private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
   @Override public void onBackPressed(){if(drawerOpen)closeDrawer();else if(tab!=0)showTab(0);else super.onBackPressed();}
   @Override protected void onDestroy(){ui.removeCallbacks(tick);stopPlayer();super.onDestroy();}
-  private static final class Ring extends View{
-    private final Paint paint=new Paint(3);
-    Ring(Activity a){super(a);}
-    @Override protected void onDraw(Canvas c){
-      float x=getWidth()/2f,y=getHeight()/2f,r=Math.min(x,y)*.38f;
-      paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Math.max(2,getWidth()*.037f));paint.setColor(WHITE);
-      c.drawCircle(x,y,r,paint);
-      paint.setStyle(Paint.Style.FILL);paint.setColor(RED);c.drawCircle(x-r,y,Math.max(4,getWidth()*.075f),paint);
-    }
-  }
   private static final class Meter extends View{
     private final MainActivity owner;
     private final boolean playback;
