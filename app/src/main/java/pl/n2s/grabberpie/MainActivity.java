@@ -13,6 +13,8 @@ import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
+import android.media.audiofx.Visualizer;
+import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -31,12 +33,69 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 public final class MainActivity extends Activity {
-  private static final int BLACK=0xff000000, CARD=0xff111111, CARD2=0xff191919, RED=0xffff244d,
-   WHITE=0xfff4f4f4, MUTED=0xff9a9a9a, LINE=0xff343434;
+  private static final int RED=0xffff244d;
+  private int BLACK=0xff000000, CARD=0xff111111, CARD2=0xff191919,
+    WHITE=0xfff4f4f4, MUTED=0xff9a9a9a, LINE=0xff343434;
+  private boolean lightTheme=false;
+  private void applyPalette(){
+    String choice=prefs.getString("theme","dark");
+    boolean systemNight=(getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+      ==Configuration.UI_MODE_NIGHT_YES;
+    lightTheme="light".equals(choice) || ("system".equals(choice) && !systemNight);
+    BLACK=lightTheme?0xfff8f8fa:0xff000000;
+    CARD=lightTheme?0xffffffff:0xff111111;
+    CARD2=lightTheme?0xffefeff1:0xff191919;
+    WHITE=lightTheme?0xff141419:0xfff4f4f4;
+    MUTED=lightTheme?0xff63636d:0xff9a9a9a;
+    LINE=lightTheme?0xffd7d7dd:0xff343434;
+    getWindow().setStatusBarColor(BLACK);
+    getWindow().setNavigationBarColor(BLACK);
+    int flags=getWindow().getDecorView().getSystemUiVisibility();
+    if(lightTheme)flags|=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+    else flags&=~(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+    getWindow().getDecorView().setSystemUiVisibility(flags);
+  }
+  private String themeName(){
+    switch(prefs.getString("theme","dark")){
+      case "system":return "Systemowy";
+      case "light":return "Light";
+      default:return "Dark";
+    }
+  }
+  private int themedColor(int color){
+    if(!lightTheme)return color;
+    switch(color){
+      case 0xff222124:return 0xfff3f3f5;
+      case 0xff363337:return 0xffd6d6dc;
+      case 0xff29282a:return 0xffededf0;
+      case 0xff414042:return 0xffd5d5db;
+      case 0xff41252c:case 0xff44212a:return 0xffffe5e9;
+      case 0xff656565:return 0xffaaaaaf;
+      case 0xff000000:return BLACK;
+      case 0xff111111:return CARD;
+      case 0xff191919:return CARD2;
+      case 0xff343434:return LINE;
+      default:return color;
+    }
+  }
+  private void chooseTheme(){
+    String[] names={"Systemowy","Dark","Light"};
+    String[] values={"system","dark","light"};
+    int current=Arrays.asList(values).indexOf(prefs.getString("theme","dark"));
+    new AlertDialog.Builder(this).setTitle("Motyw PureCapture")
+      .setSingleChoiceItems(names,current,(dialog,which)->{
+        dialog.dismiss();
+        prefs.edit().putString("theme",values[which]).apply();
+        drawerOpen=false;
+        applyPalette();
+        buildShell();
+        showTab(tab);
+      }).setNegativeButton("Anuluj",null).show();
+  }
   private static final String[] TABS={"Rejestrator dźwięku","Odtwarzacz","Moje nagrania","Źródło dźwięku","Szybkie ustawienia","Jakość nagrywania","Ustawienia","Diagnostyka"};
   private static final int REQUEST_CAPTURE=907;
   private final Handler ui=new Handler();
-  private final Runnable tick=new Runnable(){ @Override public void run(){ updateNow();ui.postDelayed(this,300); } };
+  private final Runnable tick=new Runnable(){ @Override public void run(){ updateNow();ui.postDelayed(this,90); } };
   private LinearLayout root, page, header, drawerPanel, homeTabs;
   private ScrollView bodyScroll;
   private FrameLayout outer, drawerOverlay;
@@ -47,6 +106,9 @@ public final class MainActivity extends Activity {
   private Meter meter;
   private SeekBar progress;
   private MediaPlayer player;
+  private Visualizer visualizer;
+  private volatile float playbackLevel=0f;
+  private Meter playerMeter;
   private File currentFile;
 
   private final List<File> items=new ArrayList<>();
@@ -63,7 +125,7 @@ public final class MainActivity extends Activity {
   private LinearLayout vertical(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);return l;}
   private LinearLayout horizontal(){LinearLayout l=new LinearLayout(this);l.setOrientation(0);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
   private GradientDrawable back(int fill,int stroke,int radius){
-    GradientDrawable g=new GradientDrawable();g.setColor(fill);g.setCornerRadius(dp(radius));if(stroke!=0)g.setStroke(dp(1),stroke);return g;
+    GradientDrawable g=new GradientDrawable();g.setColor(themedColor(fill));g.setCornerRadius(dp(radius));if(stroke!=0)g.setStroke(dp(1,themedColor(stroke));return g;
   }
   private TextView label(String value,int size,int color,boolean bold){
     TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setTextColor(color);
@@ -104,6 +166,7 @@ public final class MainActivity extends Activity {
     getWindow().setStatusBarColor(BLACK);getWindow().setNavigationBarColor(BLACK);
     getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     prefs=getSharedPreferences("grabber",MODE_PRIVATE);
+    applyPalette();
     Intent launched=getIntent();
     if(launched!=null && launched.hasExtra("tab")) tab=launched.getIntExtra("tab",0);
     buildShell();
@@ -131,7 +194,7 @@ public final class MainActivity extends Activity {
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"AMOLED CYBERPUNK  •  v2.0.1",10,MUTED,false);
+    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.2",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -171,11 +234,12 @@ public final class MainActivity extends Activity {
     addLabel(texts,"PureCapture",21,WHITE,true);
     addLabel(texts,"n2s",16,MUTED,false);
     gap(drawerPanel,27);
-    String[] names={"Powrót do rejestratora","Moje nagrania","Konfiguracja nagrania","Ustawienia","Diagnostyka"};
-    String[] glyphs={"●","▢","☷","⚙","⌁"};
-    int[] destinations={0,2,3,6,7};
+    String[] names={"Powrót do rejestratora","Moje nagrania","Konfiguracja nagrania",
+      "Ustawienia","Diagnostyka","Motyw: "+themeName()};
+    String[] glyphs={"●","▢","☷","⚙","⌁","◐"};
+    int[] destinations={0,2,3,6,7,-1};
     for(int i=0;i<names.length;i++){
-      if(i==1 || i==3){gap(drawerPanel,7);hairline(drawerPanel);gap(drawerPanel,6);}
+      if(i==1 || i==3 || i==5){gap(drawerPanel,7);hairline(drawerPanel);gap(drawerPanel,6);}
       final int idx=destinations[i];
       LinearLayout row=horizontal();row.setPadding(dp(13),0,dp(12),0);
       row.setBackground(back(0xff29282a,0,12));
@@ -193,11 +257,11 @@ public final class MainActivity extends Activity {
         TextView arrow=label("›",27,MUTED,false);
         row.addView(arrow);
       }
-      row.setOnClickListener(v->{closeDrawer();showTab(idx);});
+      row.setOnClickListener(v->{if(idx==-1)chooseTheme();else {closeDrawer();showTab(idx);}});
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.1",12,MUTED,false);
+    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.2",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -227,7 +291,7 @@ public final class MainActivity extends Activity {
     if(index<2){
       for(int i=0;i<2;i++){
         final int target=i;
-        TextView choice=label(TABS[i],14,i==index?BLACK:WHITE,true);
+        TextView choice=label(TABS[i],14,i==index?0xff000000:WHITE,true);
         choice.setGravity(Gravity.CENTER);
         choice.setBackground(back(i==index?RED:CARD2,i==index?RED:LINE,13));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(49),1);
@@ -237,7 +301,7 @@ public final class MainActivity extends Activity {
       }
     }
     page.removeAllViews();
-    state=null;time=null;meter=null;fileCount=null;playerLabel=null;progress=null;recordToggle=null;
+    state=null;time=null;meter=null;playerMeter=null;fileCount=null;playerLabel=null;progress=null;recordToggle=null;
     switch(index){
       case 0: recorderPage();break;
       case 1: playerPage();break;
@@ -273,7 +337,7 @@ public final class MainActivity extends Activity {
     time=addLabel(c,"00:00:00",40,WHITE,false);
     time.setTypeface(Typeface.create("sans-serif-light",0));
     time.setGravity(Gravity.CENTER);
-    meter=new Meter(this);c.addView(meter,new LinearLayout.LayoutParams(-1,dp(92)));
+    meter=new Meter(this,false);c.addView(meter,new LinearLayout.LayoutParams(-1,dp(92)));
     gap(c,11);
     micro(c,"WIZUALIZACJA SYGNAŁU");gap(c,14);
     recordToggle=block(c,"●   ROZPOCZNIJ NAGRYWANIE",true,()->{
@@ -524,6 +588,7 @@ public final class MainActivity extends Activity {
       recordToggle.setAlpha(recordToggle.isEnabled()?1f:0.65f);
     }
     if(meter!=null)meter.invalidate();
+    if(playerMeter!=null)playerMeter.invalidate();
     if(player!=null && progress!=null){
       try{progress.setMax(player.getDuration());progress.setProgress(player.getCurrentPosition());}catch(Exception ignored){}
     }
@@ -677,71 +742,147 @@ public final class MainActivity extends Activity {
       }catch(Exception e){toast("Błąd importu: "+e.getMessage());dst.delete();}
   }
   private void playerPage(){
-    h(page,"ODTWARZACZ");gap(page,12);
     LinearLayout c=card(page);
-    playerLabel=addLabel(c,currentFile==null?"Wybierz nagranie z listy.":currentFile.getName(),16,WHITE,true);
-    gap(c,17);
-    Meter waveform=new Meter(this);c.addView(waveform,new LinearLayout.LayoutParams(-1,dp(91)));
-    progress=new SeekBar(this);
-    progress.setProgressTintList(android.content.res.ColorStateList.valueOf(RED));
-    progress.setThumbTintList(android.content.res.ColorStateList.valueOf(RED));
-    c.addView(progress);
-    progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
-      @Override public void onProgressChanged(SeekBar seek,int value,boolean user){
-        if(user&&player!=null)player.seekTo(value);
-      }
-      @Override public void onStartTrackingTouch(SeekBar seek){}
-      @Override public void onStopTrackingTouch(SeekBar seek){}
-    });
-    actionStrip(c,new String[]{"▶   ODTWÓRZ","Ⅱ   PAUZA","■   STOP"},-1,i->{
-      if(i==0){if(player!=null)player.start();else if(currentFile!=null)play(currentFile);else showTab(2);}
-      else if(i==1){if(player!=null&&player.isPlaying())player.pause();}
-      else stopPlayer();
-    });
-    if(currentFile!=null && currentFile.exists()){
-      final File f=currentFile;
-      LinearLayout chosen=card(page);
-      title(chosen,"WYBRANE NAGRANIE");
-      TextView name=addLabel(chosen,f.getName(),15,WHITE,true);
-      name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);
-      gap(chosen,6);
-      micro(chosen,String.format(Locale.US,"Rozmiar %.1f MB",f.length()/1048576f));
-      hairline(chosen);
-      LinearLayout actions=horizontal();chosen.addView(actions);
-      chip(actions,"OTWÓRZ",()->{
-        if(player!=null)player.start();
-        else play(f);
+    playerLabel=addLabel(c,currentFile==null?"Nie wybrano nagrania":currentFile.getName(),16,WHITE,true);
+    playerLabel.setSingleLine(false);
+    playerLabel.setMaxLines(2);
+    gap(c,14);
+    playerMeter=new Meter(this,true);
+    c.addView(playerMeter,new LinearLayout.LayoutParams(-1,dp(104)));
+    gap(c,18);
+    LinearLayout controls=horizontal();
+    c.addView(controls,new LinearLayout.LayoutParams(-1,dp(53)));
+    final String[] labels={"ODTWÓRZ","PAUZA","STOP","WIĘCEJ"};
+    for(int i=0;i<labels.length;i++){
+      final int action=i;
+      TextView btn=label(labels[i],11,WHITE,true);
+      btn.setGravity(Gravity.CENTER);
+      btn.setSingleLine(true);
+      btn.setPadding(dp(1),0,dp(1),0);
+      btn.setBackground(back(CARD2,LINE,10));
+      LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(52),1);
+      if(i>0)p.leftMargin=dp(5);
+      controls.addView(btn,p);
+      btn.setOnClickListener(v->{
+        if(action==0){
+          if(player!=null){player.start();enableVisualizer();}
+          else if(currentFile!=null)play(currentFile);
+          else showTab(2);
+        }else if(action==1){
+          if(player!=null && player.isPlaying())player.pause();
+        }else if(action==2){
+          stopPlayer();
+          if(playerMeter!=null)playerMeter.invalidate();
+        }else{
+          playerMore();
+        }
       });
-      chip(actions,fav(f)?"★":"☆",()->{
-        prefs.edit().putBoolean("fav_"+f.getAbsolutePath(),!fav(f)).apply();
-        showTab(1);
-      });
-      chip(actions,"WIĘCEJ",()->fileMenu(f));
-    }else{
-      LinearLayout empty=card(page);micro(empty,"Wybierz nagranie z listy Moje nagrania.");
     }
-    gap(page,10);
-    block(page,"MOJE NAGRANIA  ›",false,()->showTab(2));
+  }
+  private void playerMore(){
+    if(currentFile==null || !currentFile.exists()){
+      new AlertDialog.Builder(this).setTitle("Odtwarzacz")
+        .setItems(new String[]{"Wybierz nagranie"},(d,which)->showTab(2)).show();
+      return;
+    }
+    File f=currentFile;
+    String favorite=fav(f)?"Usuń z ulubionych":"Dodaj do ulubionych";
+    new AlertDialog.Builder(this).setTitle(f.getName())
+      .setItems(new String[]{"Moje nagrania",favorite,"Zmień nazwę",
+        "Udostępnij","Przenieś do kosza"},(d,which)->{
+        switch(which){
+          case 0:showTab(2);break;
+          case 1:
+            prefs.edit().putBoolean("fav_"+f.getAbsolutePath(),!fav(f)).apply();
+            break;
+          case 2:
+            stopPlayer();
+            rename(f);
+            break;
+          case 3:share(f);break;
+          case 4:
+            confirm("Przenieść do kosza?",f.getName(),()->{
+              stopPlayer();
+              if(f.renameTo(new File(trash(),f.getName()))){
+                currentFile=null;
+                showTab(1);
+              }else toast("Nie można przenieść pliku.");
+            });
+            break;
+        }
+      }).show();
   }
   private void play(File f){
-    stopPlayer();currentFile=f;
+    stopPlayer();
+    currentFile=f;
     try{
-      player=new MediaPlayer();player.setDataSource(f.getAbsolutePath());player.prepare();player.start();
-      player.setOnCompletionListener(mp->{stopPlayer();if(playerLabel!=null)playerLabel.setText("Zakończono odtwarzanie");});
-      if(playerLabel!=null)playerLabel.setText("▶  "+f.getName());
-    }catch(Exception e){stopPlayer();toast("Błąd odtwarzania: "+e.getMessage());}
+      player=new MediaPlayer();
+      player.setDataSource(f.getAbsolutePath());
+      player.prepare();
+      enableVisualizer();
+      player.setOnCompletionListener(mp->{
+        stopPlayer();
+        if(playerLabel!=null)playerLabel.setText(f.getName());
+      });
+      if(playerLabel!=null)playerLabel.setText(f.getName());
+      player.start();
+    }catch(Exception e){
+      stopPlayer();
+      toast("Błąd odtwarzania: "+e.getMessage());
+    }
   }
-  private void stopPlayer(){if(player!=null){try{player.stop();}catch(Exception ignored){}player.release();player=null;}}
+  private void enableVisualizer(){
+    if(player==null)return;
+    if(visualizer!=null){try{visualizer.release();}catch(Exception ignored){}visualizer=null;}
+    try{
+      visualizer=new Visualizer(player.getAudioSessionId());
+      int[] range=Visualizer.getCaptureSizeRange();
+      visualizer.setCaptureSize(Math.min(1024,range[1]));
+      visualizer.setDataCaptureListener(new Visualizer.OnDataCaptureListener(){
+        @Override public void onWaveFormDataCapture(Visualizer v,byte[] waveform,int samplingRate){
+          if(waveform==null || waveform.length==0)return;
+          double squares=0d;
+          int stride=Math.max(1,waveform.length/256);
+          int count=0;
+          for(int i=0;i<waveform.length;i+=stride){
+            int value=(waveform[i]&0xff)-128;
+            squares+=value*value;
+            count++;
+          }
+          double rms=Math.sqrt(squares/Math.max(1,count));
+          playbackLevel=(float)Math.min(32767,rms*256.0);
+        }
+        @Override public void onFftDataCapture(Visualizer v,byte[] fft,int samplingRate){}
+      },Math.min(Visualizer.getMaxCaptureRate(),12000),true,false);
+      visualizer.setEnabled(true);
+    }catch(Exception problem){
+      if(visualizer!=null){try{visualizer.release();}catch(Exception ignored){}visualizer=null;}
+      playbackLevel=0f;
+    }
+  }
+  private void stopPlayer(){
+    playbackLevel=0f;
+    if(visualizer!=null){
+      try{visualizer.setEnabled(false);}catch(Exception ignored){}
+      try{visualizer.release();}catch(Exception ignored){}
+      visualizer=null;
+    }
+    if(player!=null){
+      try{player.stop();}catch(Exception ignored){}
+      player.release();
+      player=null;
+    }
+  }
   private void settingsPage(){
     h(page,"USTAWIENIA");gap(page,14);
     LinearLayout theme=card(page);title(theme,"WYGLĄD");
-    micro(theme,"Motyw AMOLED Black / Cyberpunk");
-    gap(theme,12);micro(theme,"Neonowe logo i czarne tło na wszystkich ekranach.");
+    micro(theme,"Motyw: "+themeName());
+    gap(theme,12);block(theme,"ZMIEŃ MOTYW",false,this::chooseTheme);
     LinearLayout storage=card(page);title(storage,"NAGRANIA");
     micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(2));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"PureCapture 2.0.1  •  n2s");
+    micro(about,"PureCapture 2.0.2  •  n2s");
     micro(about,"Android: "+Build.VERSION.RELEASE+". Obsługa przechwytywania wewnętrznego od Androida 10.");
   }
   private void diagnosticPage(){
@@ -749,7 +890,7 @@ public final class MainActivity extends Activity {
     LinearLayout c=card(page);title(c,"URZĄDZENIE");
     item(c,"MODEL",Build.MANUFACTURER+" "+Build.MODEL);
     item(c,"ANDROID",Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
-    item(c,"WERSJA","PureCapture 2.0.1");
+    item(c,"WERSJA","PureCapture 2.0.2");
     item(c,"UPRAWNIENIE MIKROFONU",checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED?"PRZYZNANE":"BRAK");
     item(c,"KATALOG NAGRAŃ",dir().getAbsolutePath());
     item(c,"WOLNE MIEJSCE",String.format(Locale.US,"%.2f GB",dir().getUsableSpace()/1073741824f));
@@ -785,39 +926,44 @@ public final class MainActivity extends Activity {
     }
   }
   private static final class Meter extends View{
+    private final MainActivity owner;
+    private final boolean playback;
     private final Paint paint=new Paint(3);
     private float displayed=0f;
-    Meter(Activity context){super(context);}
+    Meter(MainActivity owner,boolean playback){
+      super(owner);
+      this.owner=owner;
+      this.playback=playback;
+    }
     @Override protected void onDraw(Canvas canvas){
       super.onDraw(canvas);
       float width=getWidth();
       float height=getHeight();
-      float mid=height*0.5f;
-      float threshold=850f; // reject low-level ambient microphone hiss
-      float raw=RecordingService.running?RecordingService.reportedLevel():0f;
-      // Exactly one straight baseline whenever there is no audible input.
-      float volume=raw<=threshold ? 0f : Math.min(1f,(raw-threshold)/16000f);
-      if(!RecordingService.running)displayed=0f;
-      else if(volume==0f)displayed=0f;
-      else displayed=displayed*0.25f+volume*0.75f;
-      paint.setColor(0xff656565);
-      paint.setStrokeWidth(Math.max(2f,getResources().getDisplayMetrics().density*1.8f));
+      float mid=height/2f;
+      boolean active=playback
+        ?owner.player!=null && owner.player.isPlaying()
+        :RecordingService.running;
+      float raw=playback?owner.playbackLevel:RecordingService.reportedLevel();
+      // Noise gate: no fake animation when the source is silent.
+      float threshold=playback?350f:90f;
+      float value=!active || raw<=threshold?0f:
+        Math.min(1f,(raw-threshold)/(playback?13000f:5000f));
+      if(value==0f)displayed=0f;
+      else displayed=0.32f*displayed+0.68f*value;
+      paint.setColor(owner.lightTheme?0xffa1a1ab:0xff656565);
+      paint.setStrokeWidth(Math.max(2f,getResources().getDisplayMetrics().density*1.9f));
       paint.setStrokeCap(Paint.Cap.ROUND);
-      if(displayed==0f){
-        canvas.drawLine(0f,mid,width,mid,paint);
-        return;
-      }
-      canvas.drawLine(0f,mid,width,mid,paint);
-      float gap=width/51f;
-      float amp=height*0.46f*displayed;
+      canvas.drawLine(0,mid,width,mid,paint);
+      if(displayed<=0f)return;
+      float gap=width/49f;
+      float amplitude=height*0.47f*displayed;
       paint.setColor(RED);
-      paint.setStrokeWidth(Math.max(2.1f,gap*0.38f));
-      float motion=System.currentTimeMillis()/105.0f;
-      for(int i=0;i<51;i++){
-        // Motion is shown only while sound exceeds the silence threshold.
-        float shape=(float)(0.19+0.81*Math.abs(Math.sin(i*0.39f+motion)));
-        float envelope=(float)(0.25+0.75*Math.sin(Math.PI*(i+1)/52f));
-        float half=Math.max(1.8f,amp*shape*envelope);
+      paint.setStrokeWidth(Math.max(2.4f,gap*0.38f));
+      float t=System.currentTimeMillis()/120f;
+      for(int i=0;i<49;i++){
+        float envelope=(float)(0.24+0.76*Math.sin(Math.PI*(i+1)/50f));
+        float shape=(float)(0.18+0.82*Math.abs(Math.sin(i*0.53f+t)));
+        float half=Math.max(2f,amplitude*envelope*shape);
         float x=gap*(i+0.5f);
         canvas.drawLine(x,mid-half,x,mid+half,paint);
       }

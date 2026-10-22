@@ -15,3 +15,9 @@
 - Configuration accordion automatically closes after choosing a value; the active choice is visible in the collapsed summary.
 - Return-to-recorder drawer item has neither a leading red dot nor trailing chevron.
 - Default public output is /storage/emulated/0/Music/PureCapture. Android 9 requests WRITE_EXTERNAL_STORAGE, Android 10+ uses MediaStore with RELATIVE_PATH=Music/PureCapture. A locally indexed library copy is retained for app playback, favorites and recovery if public output fails. Custom SAF folder takes precedence.
+
+## v2.0.2
+- Player: filename, live signal visualizer (Android Visualizer attached to MediaPlayer session), only four actions PLAY, PAUSE, STOP, MORE. Remaining functions including favorites, rename, share, trash and recordings library live in MORE.
+- Recorder meter: increased sensitivity, 90 ms redraw; flat line during silence, moving bars for measured input.
+- 3-dot navigation offers Systemowy/Dark/Light theme. Dark AMOLED defaults unchanged. Light is a true reversed UI palette. A system theme follows night-mode configuration. Neon circle and dot remain transparent in header and drawer.
+- Requires RECORD_AUDIO and MODIFY_AUDIO_SETTINGS for output Visualizer, which might still be restricted by some OEM media pipelines.
