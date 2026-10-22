@@ -43,9 +43,9 @@ jobs:
         run: |
           ${ANDROID_HOME}/build-tools/34.0.0/aapt dump badging app/build/outputs/apk/debug/app-debug.apk | grep -E "(package:|sdkVersion:|targetSdkVersion:|application-label:)"
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk PureCapture-v2.0.7-Android9-plus.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk PureCapture-v2.0.8-Android9-plus.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: PureCapture-v2.0.7-Android9-plus
-          path: PureCapture-v2.0.7-Android9-plus.apk
+          name: PureCapture-v2.0.8-Android9-plus
+          path: PureCapture-v2.0.8-Android9-plus.apk
           if-no-files-found: error

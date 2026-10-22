@@ -201,7 +201,7 @@ public final class MainActivity extends Activity {
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.7",10,MUTED,false);
+    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.8",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -242,7 +242,7 @@ public final class MainActivity extends Activity {
     addLabel(texts,"n2s",16,MUTED,false);
     gap(drawerPanel,27);
     String[] names={"Powrót do rejestratora","Moje nagrania","Konfiguracja nagrania",
-      "Importuj nagrania z innej aplikacji","Diagnostyka","Ustawienia","Motyw: "+themeName()};
+      "Importuj nagrania","Diagnostyka","Ustawienia","Motyw: "+themeName()};
     String[] glyphs={"●","▢","☷","＋","⌁","⚙","◐"};
     int[] destinations={0,2,3,-2,7,6,-1};
     for(int i=0;i<names.length;i++){
@@ -257,7 +257,7 @@ public final class MainActivity extends Activity {
         ico.setGravity(Gravity.CENTER);
         row.addView(ico,new LinearLayout.LayoutParams(dp(42),-1));
       }
-      TextView name=label(names[i],i==3?14:17,WHITE,false);
+      TextView name=label(names[i],17,WHITE,false);
       if(i==3){name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);}
       LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(0,-1,1);
       np.leftMargin=dp(i==0?10:7);row.addView(name,np);
@@ -273,7 +273,7 @@ public final class MainActivity extends Activity {
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.7",12,MUTED,false);
+    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.8",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -848,7 +848,7 @@ public final class MainActivity extends Activity {
     hairline(c);
     gap(c,15);
     playerMeter=new Meter(this,true);
-    c.addView(playerMeter,new LinearLayout.LayoutParams(-1,dp(124)));
+    c.addView(playerMeter,new LinearLayout.LayoutParams(-1,dp(64)));
     gap(c,10);
     selectedDurationMs=readSelectedDuration();
     progress=new SeekBar(this);
@@ -928,6 +928,58 @@ public final class MainActivity extends Activity {
           playerMore();
         }
       });
+    }
+    // Scrollable, chronologically ordered list directly below the player.
+    gap(page,12);
+    LinearLayout recordingsCard=card(page);
+    TextView heading=addLabel(recordingsCard,"MOJE NAGRANIA",14,WHITE,true);
+    heading.setPadding(dp(2),0,0,dp(9));
+    File[] saved=dir().listFiles();
+    ArrayList<File> newestFirst=new ArrayList<>();
+    if(saved!=null)for(File file:saved)if(isCompletedRecording(file))newestFirst.add(file);
+    newestFirst.sort((first,second)->{
+      int byDate=Long.compare(second.lastModified(),first.lastModified());
+      return byDate!=0?byDate:second.getName().compareToIgnoreCase(first.getName());
+    });
+    if(newestFirst.isEmpty()){
+      micro(recordingsCard,RecordingService.processing?
+        "Trwa przygotowywanie nagrania…":"Brak zapisanych nagrań.");
+    }else{
+      ScrollView listScroll=new ScrollView(this);
+      listScroll.setFillViewport(false);
+      listScroll.setNestedScrollingEnabled(true);
+      listScroll.setVerticalScrollBarEnabled(true);
+      LinearLayout listContent=vertical();
+      listScroll.addView(listContent,new ScrollView.LayoutParams(-1,-2));
+      int visibleCount=Math.min(newestFirst.size(),5);
+      recordingsCard.addView(listScroll,new LinearLayout.LayoutParams(
+        -1,dp(visibleCount*52)));
+      for(File file:newestFirst){
+        final File selected=file;
+        boolean active=currentFile!=null &&
+          currentFile.getAbsolutePath().equals(file.getAbsolutePath());
+        TextView entry=label((active?"▶   ":"♪   ")+file.getName(),13,
+          active?RED:WHITE,active);
+        entry.setSingleLine(true);
+        entry.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        entry.setGravity(Gravity.CENTER_VERTICAL);
+        entry.setPadding(dp(13),0,dp(8),0);
+        entry.setBackground(back(active?0xff41252c:CARD2,active?RED:LINE,9));
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(46));
+        lp.bottomMargin=dp(6);
+        listContent.addView(entry,lp);
+        entry.setOnClickListener(view->{
+          if(currentFile!=null &&
+             currentFile.getAbsolutePath().equals(selected.getAbsolutePath())){
+            if(player==null)play(selected);
+            else if(!player.isPlaying())player.start();
+          }else{
+            currentFile=selected;
+            showTab(1);
+            play(selected);
+          }
+        });
+      }
     }
   }
   private void moveRecording(int direction){
@@ -1078,7 +1130,7 @@ public final class MainActivity extends Activity {
     micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(2));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"PureCapture 2.0.7  •  n2s");
+    micro(about,"PureCapture 2.0.8  •  n2s");
     micro(about,"Android: "+Build.VERSION.RELEASE+". Obsługa przechwytywania wewnętrznego od Androida 10.");
   }
   private void diagnosticPage(){
@@ -1086,7 +1138,7 @@ public final class MainActivity extends Activity {
     LinearLayout c=card(page);title(c,"URZĄDZENIE");
     item(c,"MODEL",Build.MANUFACTURER+" "+Build.MODEL);
     item(c,"ANDROID",Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
-    item(c,"WERSJA","PureCapture 2.0.7");
+    item(c,"WERSJA","PureCapture 2.0.8");
     item(c,"UPRAWNIENIE MIKROFONU",checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED?"PRZYZNANE":"BRAK");
     item(c,"KATALOG NAGRAŃ",dir().getAbsolutePath());
     item(c,"WOLNE MIEJSCE",String.format(Locale.US,"%.2f GB",dir().getUsableSpace()/1073741824f));
