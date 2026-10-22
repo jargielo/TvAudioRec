@@ -43,3 +43,9 @@ The player does not auto-start the file; press ODTWÓRZ to begin playback.
 - At first / last recording, a toast explains that there is no newer / older recording, respectively. If no file is selected but some exist, navigation opens the newest recording.
 - Switching recordings updates the filename and duration, resets the seeking control and visualizer, and starts playback of the selected file. More retains rename, favorites, sharing and trash.
 - Preserves Dark AMOLED/Light/System themes and existing transparent neon logo.
+
+## v2.0.6 — Compact player controls
+- All six playback icon tiles are truly square, not elongated vertically.
+- Their side is responsive to available phone width, capped at 52 dp; horizontal alignment is centered.
+- Reduced corners, borders and shadows preserve the original PureCapture cyberpunk red/black styling.
+- Playback behavior, visualization, seeking and theme options are unchanged.

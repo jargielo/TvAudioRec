@@ -201,7 +201,7 @@ public final class MainActivity extends Activity {
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.5",10,MUTED,false);
+    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.6",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -268,7 +268,7 @@ public final class MainActivity extends Activity {
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.5",12,MUTED,false);
+    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.6",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -876,7 +876,13 @@ public final class MainActivity extends Activity {
     times.addView(playerTotal,new LinearLayout.LayoutParams(0,-2,1));
     gap(c,22);
     LinearLayout controls=horizontal();
-    c.addView(controls,new LinearLayout.LayoutParams(-1,dp(68)));
+    controls.setGravity(Gravity.CENTER);
+    // Six truly square buttons. Calculate their side from the available phone
+    // width; cap on larger screens so they do not become tall rectangles.
+    int available=getResources().getDisplayMetrics().widthPixels
+      -dp(17*2+15*2+5*5);
+    int tileSide=Math.min(dp(52),Math.max(dp(36),available/6));
+    c.addView(controls,new LinearLayout.LayoutParams(-1,tileSide));
     final String[] hints={"Poprzednie nagranie","Odtwórz","Pauza","Stop",
       "Następne nagranie","Więcej"};
     for(int i=0;i<6;i++){
@@ -885,10 +891,10 @@ public final class MainActivity extends Activity {
       tile.setContentDescription(hints[i]);
       tile.setClickable(true);
       tile.setFocusable(true);
-      tile.setBackground(back(CARD2,RED,12));
-      tile.setElevation(dp(2));
-      LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(0,dp(66),1);
-      if(i>0)params.leftMargin=dp(4);
+      tile.setBackground(back(CARD2,RED,10));
+      tile.setElevation(dp(1));
+      LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(tileSide,tileSide);
+      if(i>0)params.leftMargin=dp(5);
       controls.addView(tile,params);
       tile.setOnClickListener(v->{
         if(action==0){
@@ -1065,7 +1071,7 @@ public final class MainActivity extends Activity {
     micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(2));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"PureCapture 2.0.5  •  n2s");
+    micro(about,"PureCapture 2.0.6  •  n2s");
     micro(about,"Android: "+Build.VERSION.RELEASE+". Obsługa przechwytywania wewnętrznego od Androida 10.");
   }
   private void diagnosticPage(){
@@ -1073,7 +1079,7 @@ public final class MainActivity extends Activity {
     LinearLayout c=card(page);title(c,"URZĄDZENIE");
     item(c,"MODEL",Build.MANUFACTURER+" "+Build.MODEL);
     item(c,"ANDROID",Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
-    item(c,"WERSJA","PureCapture 2.0.5");
+    item(c,"WERSJA","PureCapture 2.0.6");
     item(c,"UPRAWNIENIE MIKROFONU",checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED?"PRZYZNANE":"BRAK");
     item(c,"KATALOG NAGRAŃ",dir().getAbsolutePath());
     item(c,"WOLNE MIEJSCE",String.format(Locale.US,"%.2f GB",dir().getUsableSpace()/1073741824f));
