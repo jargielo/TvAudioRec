@@ -49,3 +49,9 @@ The player does not auto-start the file; press ODTWÓRZ to begin playback.
 - Their side is responsive to available phone width, capped at 52 dp; horizontal alignment is centered.
 - Reduced corners, borders and shadows preserve the original PureCapture cyberpunk red/black styling.
 - Playback behavior, visualization, seeking and theme options are unchanged.
+
+## v2.0.7 — Drawer navigation cleanup
+- Removed "Importuj nagranie z innej aplikacji" from Moje nagrania.
+- In overflow (three dots): Importuj nagrania z innej aplikacji and Diagnostyka now sit directly above Ustawienia, in that order. Menu sequence: Back to recorder, My recordings, Recording configuration, Import audio, Diagnostics, Settings, Theme.
+- Import triggers the same system ACTION_OPEN_DOCUMENT audio picker and existing import handler.
+- All other recorder, player, theme and codec behavior unchanged.

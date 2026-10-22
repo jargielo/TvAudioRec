@@ -201,7 +201,7 @@ public final class MainActivity extends Activity {
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.6",10,MUTED,false);
+    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.7",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -242,11 +242,11 @@ public final class MainActivity extends Activity {
     addLabel(texts,"n2s",16,MUTED,false);
     gap(drawerPanel,27);
     String[] names={"Powrót do rejestratora","Moje nagrania","Konfiguracja nagrania",
-      "Ustawienia","Diagnostyka","Motyw: "+themeName()};
-    String[] glyphs={"●","▢","☷","⚙","⌁","◐"};
-    int[] destinations={0,2,3,6,7,-1};
+      "Importuj nagrania z innej aplikacji","Diagnostyka","Ustawienia","Motyw: "+themeName()};
+    String[] glyphs={"●","▢","☷","＋","⌁","⚙","◐"};
+    int[] destinations={0,2,3,-2,7,6,-1};
     for(int i=0;i<names.length;i++){
-      if(i==1 || i==3 || i==5){gap(drawerPanel,7);hairline(drawerPanel);gap(drawerPanel,6);}
+      if(i==1 || i==3 || i==6){gap(drawerPanel,7);hairline(drawerPanel);gap(drawerPanel,6);}
       final int idx=destinations[i];
       LinearLayout row=horizontal();row.setPadding(dp(13),0,dp(12),0);
       row.setBackground(back(0xff29282a,0,12));
@@ -257,18 +257,23 @@ public final class MainActivity extends Activity {
         ico.setGravity(Gravity.CENTER);
         row.addView(ico,new LinearLayout.LayoutParams(dp(42),-1));
       }
-      TextView name=label(names[i],17,WHITE,false);
+      TextView name=label(names[i],i==3?14:17,WHITE,false);
+      if(i==3){name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);}
       LinearLayout.LayoutParams np=new LinearLayout.LayoutParams(0,-1,1);
       np.leftMargin=dp(i==0?10:7);row.addView(name,np);
       if(i!=0){
         TextView arrow=label("›",27,MUTED,false);
         row.addView(arrow);
       }
-      row.setOnClickListener(v->{if(idx==-1)chooseTheme();else {closeDrawer();showTab(idx);}});
+      row.setOnClickListener(v->{
+        if(idx==-1)chooseTheme();
+        else if(idx==-2){closeDrawer();launchAudioImport();}
+        else{closeDrawer();showTab(idx);}
+      });
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.6",12,MUTED,false);
+    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.7",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -703,10 +708,6 @@ public final class MainActivity extends Activity {
     find.setText(search);c.addView(find,new LinearLayout.LayoutParams(-1,dp(48)));
     find.setOnEditorActionListener((v,act,event)->{search=find.getText().toString();showTab(2);return true;});
     gap(c,11);
-    block(c,"＋   IMPORTUJ NAGRANIE Z INNEJ APLIKACJI",false,()->{
-      Intent picker=new Intent(Intent.ACTION_OPEN_DOCUMENT);picker.setType("audio/*");
-      picker.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(picker,211);
-    });
     if(items.isEmpty()){micro(page,RecordingService.processing?"Trwa kodowanie i zapis pliku...":"Brak nagrań — rozpocznij pierwsze nagranie.");return;}
     for(File f:items){
       if(!search.trim().isEmpty()&&!f.getName().toLowerCase(Locale.ROOT).contains(search.toLowerCase(Locale.ROOT)))continue;
@@ -792,6 +793,12 @@ public final class MainActivity extends Activity {
     File[] ff=trash().listFiles();if(ff==null||ff.length==0)micro(page,"Kosz jest pusty.");
     else for(File f:ff)if(f.isFile())fileRow(page,f,true);
     gap(page,10);block(page,"‹  MOJE NAGRANIA",false,()->showTab(2));
+  }
+  private void launchAudioImport(){
+    Intent picker=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+    picker.setType("audio/*");
+    picker.addCategory(Intent.CATEGORY_OPENABLE);
+    startActivityForResult(picker,211);
   }
   private void importAudio(Uri uri){String name="Import_"+System.currentTimeMillis()+".m4a";
       try(Cursor c=getContentResolver().query(uri,null,null,null,null)){
@@ -1071,7 +1078,7 @@ public final class MainActivity extends Activity {
     micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(2));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"PureCapture 2.0.6  •  n2s");
+    micro(about,"PureCapture 2.0.7  •  n2s");
     micro(about,"Android: "+Build.VERSION.RELEASE+". Obsługa przechwytywania wewnętrznego od Androida 10.");
   }
   private void diagnosticPage(){
@@ -1079,7 +1086,7 @@ public final class MainActivity extends Activity {
     LinearLayout c=card(page);title(c,"URZĄDZENIE");
     item(c,"MODEL",Build.MANUFACTURER+" "+Build.MODEL);
     item(c,"ANDROID",Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
-    item(c,"WERSJA","PureCapture 2.0.6");
+    item(c,"WERSJA","PureCapture 2.0.7");
     item(c,"UPRAWNIENIE MIKROFONU",checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED?"PRZYZNANE":"BRAK");
     item(c,"KATALOG NAGRAŃ",dir().getAbsolutePath());
     item(c,"WOLNE MIEJSCE",String.format(Locale.US,"%.2f GB",dir().getUsableSpace()/1073741824f));
