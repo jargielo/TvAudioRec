@@ -28,3 +28,5 @@
 - The player automatically selects the newly saved recording without starting playback. On returning to the player, the filename is already displayed.
 - The last completed file path and timestamp are persisted, so a process restart restores the last recording. If it is gone, the most recent available local recording is used.
 - The recorder and player continue using the same local app library even when the recording is also copied to the public Music/PureCapture directory.
+
+The player does not auto-start the file; press ODTWÓRZ to begin playback.
