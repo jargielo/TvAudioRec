@@ -61,3 +61,6 @@ The player does not auto-start the file; press ODTWÓRZ to begin playback.
 - Playback signal meter reduced to 64 dp high, from 124 dp.
 - Inside playback window below the six icon buttons: a vertical, independently scrollable recordings list, newest recording first, oldest last. Selected item is highlighted. Tap to play it. This does not change the existing Moje nagrania library.
 - Local player uses a maximum of 5 visible list items (approx 260 dp), with vertical scrolling for more.
+
+## v2.0.9
+- Swap Theme and Settings rows in the three-dot overflow drawer. Theme immediately precedes Settings. No behavior, colors, or layout changed otherwise.

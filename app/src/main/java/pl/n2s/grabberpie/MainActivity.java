@@ -201,7 +201,7 @@ public final class MainActivity extends Activity {
     dots.setGravity(Gravity.CENTER);
     branding.addView(dots,new LinearLayout.LayoutParams(dp(49),dp(60)));
     dots.setOnClickListener(v->openDrawer());
-    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.8",10,MUTED,false);
+    TextView rev=addLabel(header,"CYBERPUNK  •  "+themeName().toUpperCase(Locale.ROOT)+"  •  v2.0.9",10,MUTED,false);
     rev.setLetterSpacing(.06f);rev.setGravity(Gravity.END);
     gap(header,12);
     homeTabs=horizontal();
@@ -242,9 +242,9 @@ public final class MainActivity extends Activity {
     addLabel(texts,"n2s",16,MUTED,false);
     gap(drawerPanel,27);
     String[] names={"Powrót do rejestratora","Moje nagrania","Konfiguracja nagrania",
-      "Importuj nagrania","Diagnostyka","Ustawienia","Motyw: "+themeName()};
-    String[] glyphs={"●","▢","☷","＋","⌁","⚙","◐"};
-    int[] destinations={0,2,3,-2,7,6,-1};
+      "Importuj nagrania","Diagnostyka","Motyw: "+themeName(),"Ustawienia"};
+    String[] glyphs={"●","▢","☷","＋","⌁","◐","⚙"};
+    int[] destinations={0,2,3,-2,7,-1,6};
     for(int i=0;i<names.length;i++){
       if(i==1 || i==3 || i==6){gap(drawerPanel,7);hairline(drawerPanel);gap(drawerPanel,6);}
       final int idx=destinations[i];
@@ -273,7 +273,7 @@ public final class MainActivity extends Activity {
     }
     View spacer=new View(this);
     drawerPanel.addView(spacer,new LinearLayout.LayoutParams(1,0,1));
-    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.8",12,MUTED,false);
+    TextView foot=label("PureCapture  •  n2s\nAndroid 9 i nowsze (API 28+)  •  v2.0.9",12,MUTED,false);
     foot.setGravity(Gravity.CENTER);
     foot.setBackground(back(0xff29282a,0xff414042,18));
     drawerPanel.addView(foot,new LinearLayout.LayoutParams(-1,dp(76)));
@@ -1130,7 +1130,7 @@ public final class MainActivity extends Activity {
     micro(storage,dir().getAbsolutePath());
     gap(storage,13);block(storage,"OTWÓRZ MOJE NAGRANIA",false,()->showTab(2));
     LinearLayout about=card(page);title(about,"O APLIKACJI");
-    micro(about,"PureCapture 2.0.8  •  n2s");
+    micro(about,"PureCapture 2.0.9  •  n2s");
     micro(about,"Android: "+Build.VERSION.RELEASE+". Obsługa przechwytywania wewnętrznego od Androida 10.");
   }
   private void diagnosticPage(){
@@ -1138,7 +1138,7 @@ public final class MainActivity extends Activity {
     LinearLayout c=card(page);title(c,"URZĄDZENIE");
     item(c,"MODEL",Build.MANUFACTURER+" "+Build.MODEL);
     item(c,"ANDROID",Build.VERSION.RELEASE+" / API "+Build.VERSION.SDK_INT);
-    item(c,"WERSJA","PureCapture 2.0.8");
+    item(c,"WERSJA","PureCapture 2.0.9");
     item(c,"UPRAWNIENIE MIKROFONU",checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED?"PRZYZNANE":"BRAK");
     item(c,"KATALOG NAGRAŃ",dir().getAbsolutePath());
     item(c,"WOLNE MIEJSCE",String.format(Locale.US,"%.2f GB",dir().getUsableSpace()/1073741824f));
