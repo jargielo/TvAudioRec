@@ -6,8 +6,8 @@ android {
    applicationId = "pl.n2s.purecapture"
    minSdk = 28
    targetSdk = 28
-   versionCode = 209
-   versionName = "2.0.9"
+   versionCode = 210
+   versionName = "2.1.0"
  }
  compileOptions {
    sourceCompatibility = JavaVersion.VERSION_17
