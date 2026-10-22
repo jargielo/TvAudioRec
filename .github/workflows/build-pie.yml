@@ -1,7 +1,7 @@
-name: Build PureCapture Android 9+
+name: Build PureCapture Android TV + Phone
 on:
   push:
-    branches: [grabber-android9-pie]
+    branches: [purecapture-v2-1-0-android-tv]
   workflow_dispatch:
 jobs:
   build:
@@ -19,7 +19,7 @@ jobs:
         run: |
           python3 -m pip install -q Pillow
           python3 tools/render_cyberpunk_icon.py
-      - name: Build APK for Android Pie API 28
+      - name: Build universal APK Android 9+ and Android TV
         run: gradle --no-daemon --stacktrace assembleDebug
       - name: Verify APK has raster icon, correct package and no adaptive vector
         run: |
@@ -42,10 +42,17 @@ jobs:
       - name: Verify Android compatibility metadata
         run: |
           ${ANDROID_HOME}/build-tools/34.0.0/aapt dump badging app/build/outputs/apk/debug/app-debug.apk | grep -E "(package:|sdkVersion:|targetSdkVersion:|application-label:)"
+      - name: Validate TV launcher and optional microphone requirements
+        run: |
+          ${ANDROID_HOME}/build-tools/34.0.0/aapt dump badging app/build/outputs/apk/debug/app-debug.apk > /tmp/purecapture_badging.txt
+          grep -q 'leanback-launchable-activity' /tmp/purecapture_badging.txt
+          grep -q "uses-feature-not-required: name='android.hardware.microphone'" /tmp/purecapture_badging.txt
+          grep -q "uses-feature-not-required: name='android.hardware.touchscreen'" /tmp/purecapture_badging.txt
+          grep -E '(package:|sdkVersion:|targetSdkVersion:|application-label:|leanback-launchable-activity)' /tmp/purecapture_badging.txt
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk PureCapture-v2.0.9-Android9-plus.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk PureCapture-v2.1.0-AndroidTV-Android9-plus.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: PureCapture-v2.0.9-Android9-plus
-          path: PureCapture-v2.0.9-Android9-plus.apk
+          name: PureCapture-v2.1.0-AndroidTV-Android9-plus
+          path: PureCapture-v2.1.0-AndroidTV-Android9-plus.apk
           if-no-files-found: error
