@@ -3,7 +3,7 @@ android {
  namespace = "pl.n2s.grabberpie"
  compileSdk = 34
  defaultConfig {
-   applicationId = "pl.n2s.purecapture"
+   applicationId = "pl.n2s.purecapture.tv"
    minSdk = 28
    targetSdk = 28
    versionCode = 210
