@@ -36,3 +36,10 @@ The player does not auto-start the file; press ODTWÓRZ to begin playback.
 - Only filename, real playback signal meter, red seek bar with elapsed / total playback times, and 4 equal icon-only red neon tiles (Play, Pause, Stop, More).
 - More contains file actions, favorites, rename, share, trash, and My Recordings. Icons drawn as vector canvas shapes with accessibility labels, not emoji or text pretending to be icons.
 - A new recording remains auto-selected after conversion as in v2.0.3; timer and seek are functional when MediaPlayer supports the file.
+
+## v2.0.5 — Playback navigation (six icons)
+- Player has six red neon touch tiles on one line: Previous, Play, Pause, Stop, Next, More. No text within the tiles.
+- Previous opens the chronologically older completed recording; Next opens a newer recording, sorted using file last-modified time descending (with filename tiebreaker).
+- At first / last recording, a toast explains that there is no newer / older recording, respectively. If no file is selected but some exist, navigation opens the newest recording.
+- Switching recordings updates the filename and duration, resets the seeking control and visualizer, and starts playback of the selected file. More retains rename, favorites, sharing and trash.
+- Preserves Dark AMOLED/Light/System themes and existing transparent neon logo.
