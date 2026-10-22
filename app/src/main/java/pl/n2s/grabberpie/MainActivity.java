@@ -428,6 +428,15 @@ public final class MainActivity extends Activity {
     });
     gap(page,6);
     micro(page,"Źródło: "+sourceName()+"     •     "+fmt()+"     •     "+kbps()+" kb/s");
+    if(isTv()){
+      gap(page,13);
+      micro(page,"Android TV: nagrywanie wewnętrzne wymaga zgody systemu i zgodności telewizora oraz odtwarzającej aplikacji. " +
+        "Dźwięku z zabezpieczonych aplikacji (DRM) nie można przechwytywać.");
+      if(!getPackageManager().hasSystemFeature(PackageManager.FEATURE_MICROPHONE)){
+        gap(page,8);
+        micro(page,"Telewizor nie zgłasza mikrofonu. Do nagrywania z mikrofonu podłącz zgodne urządzenie wejściowe.");
+      }
+    }
   }
 
   private int channels(){return prefs.getInt("channels",1)==2?2:1;}
@@ -546,6 +555,14 @@ public final class MainActivity extends Activity {
     gap(page,10);block(page,"‹   POWRÓT DO REJESTRATORA",false,()->showTab(0));
   }
   private void start(){
+    if(isTv()&&source()==0&& !getPackageManager().hasSystemFeature(PackageManager.FEATURE_MICROPHONE)){
+      recordingActionPending=false;
+      new AlertDialog.Builder(this).setTitle("Brak mikrofonu w telewizorze")
+        .setMessage("TV nie zgłasza mikrofonu. Wybierz dźwięk wewnętrzny (jeśli urządzenie na to pozwala) albo podłącz obsługiwany mikrofon USB/Bluetooth.")
+        .setPositiveButton("Źródło dźwięku",(d,w)->{expandedConfig=0;showTab(3);})
+        .setNegativeButton("Anuluj",null).show();
+      return;
+    }
     if(RecordingService.running || RecordingService.processing){recordingActionPending=false;toast("Nagranie jest w toku lub trwa zapis pliku");return;}
     if(Build.VERSION.SDK_INT<=28 &&
        prefs.getString("save_tree_uri","").isEmpty() &&
@@ -572,9 +589,18 @@ public final class MainActivity extends Activity {
         requestPermissions(new String[]{"android.permission.BLUETOOTH_CONNECT"},43);
         return;
       }
-      android.media.projection.MediaProjectionManager mgr=
-        (android.media.projection.MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE);
-      startActivityForResult(mgr.createScreenCaptureIntent(),REQUEST_CAPTURE);
+      try{
+        android.media.projection.MediaProjectionManager mgr=
+          (android.media.projection.MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE);
+        if(mgr==null)throw new IllegalStateException("System nie udostępnia MediaProjection");
+        startActivityForResult(mgr.createScreenCaptureIntent(),REQUEST_CAPTURE);
+      }catch(Exception error){
+        recordingActionPending=false;
+        new AlertDialog.Builder(this).setTitle("Brak przechwytywania dźwięku")
+          .setMessage("Ten telewizor może nie obsługiwać systemowego przechwytywania dźwięku: "+
+            error.getMessage())
+          .setPositiveButton("OK",null).show();
+      }
       return;
     }
     startMic();
